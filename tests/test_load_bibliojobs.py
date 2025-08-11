@@ -106,7 +106,7 @@ def test_load_bibliojobs_reports_progress(tmp_path):
     load_bibliojobs(path, progress_callback=lambda v: calls.append(v))
 
     assert calls, "progress callback was not invoked"
-    assert all(e <= l for e, l in zip(calls, calls[1:])), "progress not monotonically increasing"
+    assert all(a <= b for a, b in zip(calls[:-1], calls[1:])), "progress not monotonically increasing"
     assert calls[-1] == pytest.approx(100.0)
 
 
