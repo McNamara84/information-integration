@@ -1,0 +1,165 @@
+\documentclass[
+    a4paper,
+    12pt,
+    headinclude=true,
+    BCOR=10mm,
+    %toc=bibnumbered
+]{scrreprt}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{microtype}
+\usepackage{listings}
+\lstset{
+    basicstyle=\ttfamily,
+    literate={Ö}{{\"O}}1 {Ä}{{\"A}}1 {Ü}{{\"U}}1 {ß}{{\ss}}1 {ü}{{\"u}}1 {ä}{{\"a}}1 {ö}{{\"o}}1
+}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[german]{babel}
+\usepackage{setspace}
+\usepackage[hidelinks]{hyperref}
+\usepackage{csquotes}
+\usepackage{svg}
+\usepackage[backend=biber,style=authoryear,language=german]{biblatex}
+\addbibresource{refs/refs.bib}
+\ExecuteBibliographyOptions{date=year}
+\renewbibmacro*{doi+eprint+url}{%
+  \iftoggle{bbx:doi}
+    {\printfield{doi}}
+    {}%
+  \newunit\newblock
+  \iftoggle{bbx:eprint}
+    {\usebibmacro{eprint}}
+    {}%
+  \newunit\newblock
+  \iftoggle{bbx:url}
+    {\iffieldundef{doi}
+      {\usebibmacro{url+urldate}}
+      {}}
+    {}}
+\renewbibmacro*{url+urldate}{%
+  \printfield{url}%
+  \ifentrytype{online}
+    {\setunit*{\addspace}%
+     \usebibmacro{urldate}}
+    {\ifentrytype{misc}
+      {\iffieldundef{doi}
+        {\setunit*{\addspace}%
+         \usebibmacro{urldate}}
+        {}}
+      {}}}
+\DefineBibliographyStrings{german}{
+    andothers = {et\addabbrvspace al\adddot},
+    and = {und},
+}
+
+\usepackage[acronym]{glossaries}
+\makeglossaries
+\newacronym{nft}{NFT}{Non-Fungible Token}
+
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\today}
+\lhead{\namen}
+\cfoot{\thepage}
+
+\onehalfspacing
+
+% User-defined commands
+\newcommand{\namen}{H. Ehrmann}
+
+\begin{document}
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+    \Large{\textbf{PLATZHALTER FÜR TITEL}}\\
+    \vspace{1.5cm}
+    \Large{Fachhochschule Potsdam}\\
+    \vspace{0.5cm}
+    \large{Informations- und Datenmanagement}\\
+    \vspace{1.5cm}
+    Holger Ehrmann\\
+    Matr. Nr. 21766\\
+    \vspace{1cm}
+    D11 Informationsintegration\\
+    Sommersemester 25\\
+    Prof. Dr. Günther Neher
+    \vfill
+    \today
+\end{titlepage}
+\setcounter{tocdepth}{1}
+\begingroup
+\setstretch{1.2} % Setzt den Zeilenabstand im Inhaltsverzeichnis
+{\small \tableofcontents}
+\endgroup
+
+\chapter{Einleitung}
+
+Die zunehmende Digitalisierung des Arbeitsmarktes hat in den vergangenen Jahren zu einer exponentiellen Zunahme digitaler Stellenausschreibungen geführt. Diese Entwicklung eröffnet neue Möglichkeiten für datengetriebene Arbeitsmarktanalysen, stellt jedoch gleichzeitig erhebliche Anforderungen an die Qualität und Konsistenz der zugrundeliegenden Datenbestände. Insbesondere im Berufsfeld der Bibliotheks- und Informationswissenschaft, das sich durch eine heterogene Landschaft von Arbeitgebern aus öffentlichen und privaten Einrichtungen auszeichnet, ist eine systematische Aufbereitung und Analyse von Stellenmarktdaten von besonderem Interesse.
+
+Die vorliegende Arbeit befasst sich mit der Aufbereitung und Integration eines umfangreichen Datensatzes von circa 23.000 Stellenausschreibungen aus dem Zeitraum 2014 bis 2025. Der Fokus liegt dabei auf der systematischen Bereinigung, Homogenisierung und Anreicherung der Metadaten als Vorbereitung für den Import in ein Data Warehouse. Diese Datenintegrationsprozesse bilden die Grundlage für belastbare statistische Analysen des Stellenmarktes im Bibliotheks- und Informationswesen.
+
+Die Herausforderungen bei der Integration heterogener Datenquellen sind vielfältig und reichen von syntaktischen Inkonsistenzen über fehlende Standardisierungen bis hin zu inhaltlichen Dubletten. Die systematische Bewältigung dieser Herausforderungen erfordert den Einsatz verschiedener Techniken der Datenbereinigung und -anreicherung, deren praktische Anwendung und kritische Reflexion im Zentrum dieser Arbeit stehen.
+
+\section{Problemstellung}
+
+Die Ausgangslage der vorliegenden Aufgabenstellung ist charakterisiert durch einen umfangreichen Rohdatensatz von Stellenausschreibungen im CSV-Format, der erhebliche Qualitätsprobleme aufweist, die eine direkte analytische Verwertung verhindern. Die Datensätze umfassen elf Metadatenfelder, darunter Ortsangaben, Arbeitgebernamen, Stellenkurzbeschreibungen und Ausschreibungsdaten, die durch das Feldtrennzeichen \texttt{\_§\_} separiert sind.
+
+Die zentralen Problemfelder lassen sich in drei Kategorien unterteilen:
+
+Erstens weisen die Daten erhebliche Inkonsistenzen und Fehler auf, insbesondere in den kritischen Feldern \texttt{\_LOCATION\_} und \texttt{\_COMPANY\_}. Diese Inkonsistenzen manifestieren sich in unterschiedlichen Schreibweisen derselben Entitäten, fehlerhaften Einträgen und uneinheitlichen Formatierungen. Die Heterogenität der Datenquellen hat zu einer Vielzahl von Datenqualitätsproblemen geführt, die gemäß der Fehlerklassifikation nach Naumann und Leser systematisch identifiziert und quantifiziert werden müssen.
+
+Zweitens existieren im Datensatz inhaltliche Dubletten in Form von Mehrfachausschreibungen identischer Stellen, die die statistische Validität nachfolgender Analysen gefährden würden. Diese Dubletten müssen zuverlässig identifiziert und aus dem Analysedatensatz entfernt werden, wobei sie gleichzeitig für mögliche Folgeuntersuchungen zu bewahren sind.
+
+Drittens fehlen dem Datensatz wesentliche analytische Dimensionen, die für eine umfassende Arbeitsmarktanalyse erforderlich sind. Die Ortsangaben enthalten keine regionalen Zuordnungen zu Bundesländern, und wichtige Stellencharakteristika wie Befristung, Arbeitsumfang (Vollzeit/Teilzeit) und Vergütungsinformationen sind nur unstrukturiert in Freitextfeldern enthalten. Diese Informationen müssen extrahiert und in strukturierter Form verfügbar gemacht werden.
+
+Die beschriebenen Datenqualitätsprobleme verhindern in ihrer Gesamtheit eine sinnvolle Integration der Daten in ein Data Warehouse und damit die Durchführung belastbarer statistischer Analysen. Ohne systematische Datenbereinigung und -anreicherung können keine verlässlichen Aussagen über Trends und Entwicklungen im Stellenmarkt der Bibliotheks- und Informationswissenschaft getroffen werden.
+
+\section{Ziel der Arbeit}
+
+Das primäre Ziel dieser Arbeit besteht in der Entwicklung und Implementierung eines systematischen Datenintegrationsprozesses, der die vorliegenden Rohdaten in einen analysierbaren, qualitätsgesicherten Datensatz transformiert. Dieser Prozess soll die identifizierten Datenqualitätsprobleme adressieren und die Daten für den Import in ein PostgreSQL-basiertes Data Warehouse vorbereiten.
+
+Im Einzelnen verfolgt die Arbeit folgende Teilziele:
+
+Die Durchführung eines umfassenden Data Profiling aller Metadatenfelder zur systematischen Identifikation und Quantifizierung von Datenfehlern. Die Ergebnisse werden gemäß der etablierten Fehlerklassifikation nach Naumann und Leser kategorisiert und hinsichtlich ihrer relativen Häufigkeit dokumentiert. Diese systematische Fehleranalyse bildet die Grundlage für gezielte Bereinigungsmaßnahmen und ermöglicht eine fundierte Bewertung der Datenqualität.
+
+Die Entwicklung und Anwendung von Bereinigungsverfahren für die kritischen Metadatenfelder \texttt{\_LOCATION\_} und \texttt{\_COMPANY\_}, um Inkonsistenzen zu beseitigen und eine einheitliche Datenbasis zu schaffen. Parallel dazu erfolgt die Identifikation und Separation inhaltlicher Dubletten, um die Integrität der späteren statistischen Analysen zu gewährleisten.
+
+Die Anreicherung des Datensatzes durch Integration externer Datenquellen und Extraktion impliziter Informationen. Dies umfasst die Verknüpfung mit einer MySQL-Datenbank zur Ergänzung regionaler Zuordnungen sowie die Anwendung von Extraktionsverfahren auf Freitextfelder zur Gewinnung strukturierter Informationen zu Beschäftigungsverhältnissen und Vergütung.
+
+Die Implementierung des gesamten Datenintegrationsprozesses in Form reproduzierbarer Skripte und Prozessketten, die eine vollständige Nachvollziehbarkeit und Wiederholbarkeit der Datenaufbereitung gewährleisten. Die entwickelten Verfahren sollen dabei so dokumentiert werden, dass sie als Vorlage für ähnliche Datenintegrationsprojekte dienen können.
+
+Abschließend soll die Arbeit eine kritische Reflexion der angewandten Methoden und erzielten Ergebnisse liefern, einschließlich einer Bewertung der verbleibenden Datenqualitätsprobleme und Empfehlungen für weiterführende Verbesserungsmaßnahmen. Die bereinigte und angereicherte Datenbasis soll schließlich die Grundlage für aussagekräftige statistische Analysen des Stellenmarktes im Bereich der Bibliotheks- und Informationswissenschaft bilden.
+
+\newpage
+\addcontentsline{toc}{chapter}{Eigenständigkeitserklärung}
+\chapter*{Eigenständigkeitserklärung}
+Ich erkläre, dass
+\begin{itemize}
+    \item ich die schriftliche Prüfungsleistung (Hausarbeit und sonstige schriftliche Ausarbeitungen im Rahmen eines Leistungsnachweises) oder den von mir verantworteten und namentlich kenntlich gemachten Teil im Rahmen einer Gruppenarbeit selbstständig verfasst habe,
+    \item ich keine anderen als die angegebenen Hilfsmittel und Quellen benutzt habe,
+    \item Teile der Arbeit oder die Arbeit an sich nicht an anderer Stelle als Prüfungsleistung vorgelegt wurde und
+    \item die Passagen der Arbeit, die fremden Werken wörtlich oder sinngemäß entnommen sind, unter Angabe der Quellen und unter Beachtung der im Wissenschaftsbereich geltenden allgemeinen verwendeten Zitierregelungen gekennzeichnet sind.
+\end{itemize}
+
+Zugleich erkläre ich, dass ich die Prüfungsleistung vor der Abgabe der Leistung bei QIS angemeldet habe.
+
+\vspace{2cm}
+
+\noindent
+Potsdam, den \today
+
+\vspace{2cm}
+
+\noindent
+\rule{6cm}{0.4pt}\\
+Unterschrift
+
+\addcontentsline{toc}{chapter}{Literaturverzeichnis}
+\printbibliography
+\newpage
+\appendix
+\end{document}
