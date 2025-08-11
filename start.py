@@ -88,7 +88,6 @@ class ProfileWindow(QtWidgets.QMainWindow):
     def __init__(self, stats, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Data Profiling")
-        self.resize(800, 400)
         table = QtWidgets.QTableWidget(self)
         table.setAlternatingRowColors(True)
         table.setRowCount(len(stats))
@@ -100,6 +99,14 @@ class ProfileWindow(QtWidgets.QMainWindow):
                 table.setItem(row_idx, col_idx, item)
         table.resizeColumnsToContents()
         self.setCentralWidget(table)
+
+        total_width = table.verticalHeader().width() + table.frameWidth() * 2
+        total_width += table.verticalScrollBar().sizeHint().width()
+        for i in range(table.columnCount()):
+            total_width += table.columnWidth(i)
+        screen = QtWidgets.QApplication.primaryScreen()
+        screen_width = screen.availableGeometry().width() if screen else total_width
+        self.resize(min(total_width, screen_width), 400)
 
 
 def main() -> None:
