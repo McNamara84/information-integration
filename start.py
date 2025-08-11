@@ -69,7 +69,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_finished(self, df) -> None:
         self._status.showMessage("Einlesen abgeschlossen", 5000)
         self._progress.setValue(100)
-        self.dataframe = df
+        self._dataframe = df
         self._button.setEnabled(True)
 
     @QtCore.pyqtSlot(str)
@@ -78,9 +78,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._progress.setValue(0)
 
     def _show_profile(self) -> None:
-        if not hasattr(self, "dataframe"):
+        if not self._button.isEnabled():
             return
-        stats = profile_dataframe(self.dataframe)
+        stats = profile_dataframe(self._dataframe)
         window = ProfileWindow(stats, self)
         window.show()
         self._profile_window = window  # prevent garbage collection

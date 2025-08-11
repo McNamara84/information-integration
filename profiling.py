@@ -1,15 +1,15 @@
 """Data profiling utilities for the Bibliojobs dataset."""
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable
+from typing import Any, Dict
 
 import pandas as pd
 
 # Common placeholders that should be treated as data errors/missing markers.
-ERROR_VALUES = {"", "??", "na", "n/a", "null", None}
+ERROR_VALUES = ["", "??", "na", "n/a", "null", None]
 
 
-def _top_error(series: pd.Series) -> tuple[str, int]:
+def _top_error(series: pd.Series) -> tuple[Any, int]:
     """Return the most frequent error marker and its count for *series*.
 
     Parameters
@@ -17,7 +17,7 @@ def _top_error(series: pd.Series) -> tuple[str, int]:
     series:
         The pandas ``Series`` to analyse.
     """
-    top = ""
+    top: Any = None
     top_count = 0
     for value in ERROR_VALUES:
         # ``==`` works for all markers except ``None`` which we handle via ``isna``.
@@ -26,7 +26,7 @@ def _top_error(series: pd.Series) -> tuple[str, int]:
         else:
             count = (series == value).sum()
         if count > top_count:
-            top = "" if value is None else str(value)
+            top = value
             top_count = int(count)
     return top, top_count
 
@@ -70,7 +70,7 @@ def profile_dataframe(df: pd.DataFrame) -> pd.DataFrame:
                 "Fehlende Werte": missing,
                 "Fehlende Werte %": round(missing / total * 100, 2) if total else 0.0,
                 "Eindeutige Werte": unique,
-                "Häufigste Fehlerart": error_val,
+                "Häufigste Fehlerart": "" if error_count == 0 else str(error_val),
                 "Fehler Häufigkeit": error_count,
                 "Fehler %": round(error_count / total * 100, 2) if total else 0.0,
                 "Häufigster Wert": top_value,

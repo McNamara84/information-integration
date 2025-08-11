@@ -1,9 +1,4 @@
-from pathlib import Path
-import sys
-
 import pandas as pd
-
-sys.path.append(str(Path(__file__).resolve().parents[1]))
 from profiling import profile_dataframe
 
 
@@ -24,3 +19,11 @@ def test_profile_dataframe_basic():
     assert col_b["Häufigste Fehlerart"] == "na"
     assert col_b["Fehler Häufigkeit"] == 1
     assert col_b["Fehler %"] == 25.0
+
+
+def test_none_as_top_error():
+    df = pd.DataFrame({"a": [None, None, "x"]})
+    profile = profile_dataframe(df)
+    col = profile[profile["Spalte"] == "a"].iloc[0]
+    assert col["Häufigste Fehlerart"] == "None"
+    assert col["Fehler Häufigkeit"] == 2
