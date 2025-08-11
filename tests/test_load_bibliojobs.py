@@ -109,3 +109,9 @@ def test_load_bibliojobs_reports_progress(tmp_path):
     assert calls == sorted(calls)
     assert calls[-1] == pytest.approx(100.0)
     assert all(0 < c <= 100 for c in calls)
+
+
+def test_load_bibliojobs_missing_file(tmp_path):
+    missing = tmp_path / "does-not-exist.csv"
+    with pytest.raises(FileNotFoundError, match="CSV-Datei nicht gefunden"):
+        load_bibliojobs(missing)

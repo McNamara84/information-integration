@@ -32,25 +32,30 @@ def load_bibliojobs(
     pandas.DataFrame
         DataFrame with normalised column names and corrected dtypes.
     """
+    path_str = os.fspath(path)
+    if not os.path.exists(path_str):
+        raise FileNotFoundError(f"CSV-Datei nicht gefunden: {path_str}")
+
     # Read with explicit UTF-8 encoding and the `_§_` delimiter. If a
     # ``progress_callback`` is supplied the file is read in chunks so that the
     # caller can be informed about the progress of the operation.
     if progress_callback:
         chunks = []
-        total_size = os.path.getsize(path)
-        with open(path, "r", encoding="utf-8") as handle:
+        total_size = os.path.getsize(path_str)
+        with open(path_str, "rb") as handle:
             reader = pd.read_csv(
                 handle,
                 sep="_§_",
                 engine="python",
                 chunksize=1000,
+                encoding="utf-8",
             )
             for chunk in reader:
                 chunks.append(chunk)
-                progress_callback(handle.buffer.tell() / total_size * 100)
+                progress_callback(handle.tell() / total_size * 100)
         df = pd.concat(chunks, ignore_index=True)
     else:
-        df = pd.read_csv(path, sep="_§_", engine="python", encoding="utf-8")
+        df = pd.read_csv(path_str, sep="_§_", engine="python", encoding="utf-8")
 
     # Remove leading/trailing underscores and standardise column names.
     normalised = df.columns.str.strip("_").str.lower()
