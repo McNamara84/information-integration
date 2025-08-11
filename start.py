@@ -2,6 +2,8 @@ import argparse
 import sys
 from PyQt5 import QtCore, QtWidgets
 
+from profiling import profile_dataframe
+
 from load_bibliojobs import load_bibliojobs
 
 
@@ -40,6 +42,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self._status.addPermanentWidget(self._progress)
         self._status.showMessage("CSV-Datei wird eingelesen...")
 
+        self._button = QtWidgets.QPushButton("Data Profiling")
+        self._button.setEnabled(False)
+        self._button.clicked.connect(self._show_profile)
+        container = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(container)
+        layout.addWidget(self._button)
+        layout.addStretch()
+        self.setCentralWidget(container)
+
         self._worker = LoadWorker(path)
         self._thread = QtCore.QThread(self)
         self._worker.moveToThread(self._thread)
@@ -59,11 +70,38 @@ class MainWindow(QtWidgets.QMainWindow):
         self._status.showMessage("Einlesen abgeschlossen", 5000)
         self._progress.setValue(100)
         self.dataframe = df
+        self._button.setEnabled(True)
 
     @QtCore.pyqtSlot(str)
     def _on_error(self, message: str) -> None:
         self._status.showMessage(message, 5000)
         self._progress.setValue(0)
+
+    def _show_profile(self) -> None:
+        if not hasattr(self, "dataframe"):
+            return
+        stats = profile_dataframe(self.dataframe)
+        window = ProfileWindow(stats, self)
+        window.show()
+        self._profile_window = window  # prevent garbage collection
+
+
+class ProfileWindow(QtWidgets.QMainWindow):
+    def __init__(self, stats, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Data Profiling")
+        self.resize(800, 400)
+        table = QtWidgets.QTableWidget(self)
+        table.setAlternatingRowColors(True)
+        table.setRowCount(len(stats))
+        table.setColumnCount(len(stats.columns))
+        table.setHorizontalHeaderLabels(stats.columns.tolist())
+        for row_idx, (_, row) in enumerate(stats.iterrows()):
+            for col_idx, value in enumerate(row):
+                item = QtWidgets.QTableWidgetItem(str(value))
+                table.setItem(row_idx, col_idx, item)
+        table.resizeColumnsToContents()
+        self.setCentralWidget(table)
 
 
 def main() -> None:

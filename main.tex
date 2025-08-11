@@ -104,6 +104,8 @@ Die Rohdaten liegen als CSV-Datei mit dem Feldtrenner \texttt{\_§\_} vor und we
 
 Zunächst wird ein umfangreiches Data Profiling durchgeführt, das strukturelle und inhaltliche Anomalien der Ausgangsdaten sichtbar macht. Auf dieser Grundlage folgen schrittweise Bereinigungen und Normalisierungen, wobei \texttt{fuzzywuzzy} zur Erkennung und Zusammenführung von Dubletten eingesetzt wird. Für die Anreicherung der Daten mit regionalen Informationen werden externe Referenzdaten eingebunden und über \texttt{sqlalchemy} mit den bestehenden Datensätzen verknüpft. Abschließend ermöglichen Skripte zur Extraktion von Freitextinformationen die Überführung unstrukturierter Angaben in auswertbare Felder. Diese methodische Kette gewährleistet eine transparente und reproduzierbare Aufbereitung des Datensatzes.
 
+Im Hauptfenster der Anwendung steht dafür ein Button \glqq Data Profiling\grqq{} zur Verfügung. Nach dem Einlesen der CSV-Datei öffnet ein Klick darauf ein übersichtliches Dashboard, das für jede Spalte Zeilenzahl, fehlende sowie eindeutige Werte, relative Häufigkeiten und häufige Fehlerindikatoren darstellt. Auf diese Weise lassen sich Datenqualitätsprobleme frühzeitig erkennen und gezielt beheben.
+
 \newpage
 \addcontentsline{toc}{chapter}{Eigenständigkeitserklärung}
 \chapter*{Eigenständigkeitserklärung}
