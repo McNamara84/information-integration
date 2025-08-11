@@ -91,3 +91,18 @@ def test_load_bibliojobs_duplicate_columns_error(tmp_path):
 
     with pytest.raises(ValueError, match="Duplicate column names"):
         load_bibliojobs(path)
+
+
+def test_load_bibliojobs_reports_progress(tmp_path):
+    df = pd.DataFrame({
+        "_JobID_": [str(i) for i in range(2500)],
+        "date": ["01-02-2020"] * 2500,
+        "geo_lat": ["52"] * 2500,
+        "geo_lon": ["13"] * 2500,
+    })
+    path = write_csv(tmp_path, df)
+
+    calls = []
+    load_bibliojobs(path, progress_callback=lambda v: calls.append(v))
+
+    assert calls == pytest.approx([40.0, 80.0, 100.0])
