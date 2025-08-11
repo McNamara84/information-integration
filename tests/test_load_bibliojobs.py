@@ -91,3 +91,26 @@ def test_load_bibliojobs_duplicate_columns_error(tmp_path):
 
     with pytest.raises(ValueError, match="Duplicate column names"):
         load_bibliojobs(path)
+
+
+def test_load_bibliojobs_reports_progress(tmp_path):
+    df = pd.DataFrame({
+        "_JobID_": [str(i) for i in range(2500)],
+        "date": ["01-02-2020"] * 2500,
+        "geo_lat": ["52"] * 2500,
+        "geo_lon": ["13"] * 2500,
+    })
+    path = write_csv(tmp_path, df)
+
+    calls = []
+    load_bibliojobs(path, progress_callback=lambda v: calls.append(v))
+
+    assert calls, "progress callback was not invoked"
+    assert all(a <= b for a, b in zip(calls[:-1], calls[1:])), "progress not monotonically increasing"
+    assert calls[-1] == pytest.approx(100.0)
+
+
+def test_load_bibliojobs_missing_file(tmp_path):
+    missing = tmp_path / "does-not-exist.csv"
+    with pytest.raises(FileNotFoundError, match="CSV-Datei nicht gefunden"):
+        load_bibliojobs(missing)

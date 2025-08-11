@@ -5,4 +5,5 @@ fuzzywuzzy[speedup]
 sqlalchemy
 mysqlclient
 psycopg2-binary
+PyQt5
 nltk

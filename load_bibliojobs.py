@@ -1,6 +1,7 @@
 """Utilities to load and clean the Bibliojobs dataset."""
 import logging
-from typing import Union
+import os
+from typing import Callable, Optional, Union
 
 import pandas as pd
 
@@ -10,6 +11,7 @@ def load_bibliojobs(
     path: Union[str, bytes] = "bibliojobs_raw.csv",
     *,
     date_format: str = "%d-%m-%Y",
+    progress_callback: Optional[Callable[[float], None]] = None,
 ) -> pd.DataFrame:
     """Read the bibliojobs CSV using the custom `_§_` delimiter and clean it.
 
@@ -21,14 +23,45 @@ def load_bibliojobs(
     date_format:
         Expected ``strftime`` format of the ``date`` column. Defaults to
         ``"%d-%m-%Y"``.
+    progress_callback:
+        Optional function that receives the percentage of processed CSV rows as
+        a ``float`` between 0 and 100.
 
     Returns
     -------
     pandas.DataFrame
         DataFrame with normalised column names and corrected dtypes.
     """
-    # Read with explicit UTF-8 encoding and the `_§_` delimiter.
-    df = pd.read_csv(path, sep="_§_", engine="python", encoding="utf-8")
+    path_str = os.fspath(path)
+    if not os.path.exists(path_str):
+        raise FileNotFoundError(f"CSV-Datei nicht gefunden: {path_str}")
+
+    # Read with explicit UTF-8 encoding and the `_§_` delimiter. If a
+    # ``progress_callback`` is supplied the file is read in chunks so that the
+    # caller can be informed about the progress of the operation.
+    if progress_callback:
+        with open(path_str, encoding="utf-8") as handle:
+            total_rows = sum(1 for _ in handle) - 1
+
+        reader = pd.read_csv(
+            path_str,
+            sep="_§_",
+            engine="python",
+            encoding="utf-8",
+            chunksize=1000,
+        )
+        chunks = []
+        rows_read = 0
+        for chunk in reader:
+            chunks.append(chunk)
+            rows_read += len(chunk)
+            if total_rows > 0:
+                progress_callback(min(rows_read / total_rows * 100, 100))
+        # Ensure the callback signals completion
+        progress_callback(100.0)
+        df = pd.concat(chunks, ignore_index=True)
+    else:
+        df = pd.read_csv(path_str, sep="_§_", engine="python", encoding="utf-8")
 
     # Remove leading/trailing underscores and standardise column names.
     normalised = df.columns.str.strip("_").str.lower()
