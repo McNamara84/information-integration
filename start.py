@@ -21,7 +21,7 @@ class LoadWorker(QtCore.QObject):
 
         try:
             dataframe = load_bibliojobs(self._path, progress_callback=callback)
-        except FileNotFoundError as exc:  # pragma: no cover - user interaction
+        except FileNotFoundError as exc:  # pragma: no cover
             self.error.emit(str(exc))
             return
 
