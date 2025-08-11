@@ -20,13 +20,14 @@ class LoadWorker(QtCore.QObject):
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("Information Integration")
+        self.setWindowTitle("Informationsintegration")
         self.resize(800, 600)
 
         self._status = self.statusBar()
         self._progress = QtWidgets.QProgressBar()
         self._progress.setRange(0, 100)
         self._status.addPermanentWidget(self._progress)
+        self._status.showMessage("CSV-Datei wird eingelesen...")
 
         self._worker = LoadWorker()
         self._thread = QtCore.QThread(self)

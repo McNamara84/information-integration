@@ -1,5 +1,6 @@
 """Utilities to load and clean the Bibliojobs dataset."""
 import logging
+import os
 from typing import Callable, Optional, Union
 
 import pandas as pd
@@ -23,8 +24,8 @@ def load_bibliojobs(
         Expected ``strftime`` format of the ``date`` column. Defaults to
         ``"%d-%m-%Y"``.
     progress_callback:
-        Optional function that receives the percentage of rows read as a
-        ``float`` between 0 and 100.
+        Optional function that receives the percentage of bytes read from the
+        file as a ``float`` between 0 and 100.
 
     Returns
     -------
@@ -35,19 +36,21 @@ def load_bibliojobs(
     # ``progress_callback`` is supplied the file is read in chunks so that the
     # caller can be informed about the progress of the operation.
     if progress_callback:
-        # Count the total number of data lines (excluding the header) to
-        # calculate a percentage.
-        with open(path, encoding="utf-8") as handle:
-            total_lines = sum(1 for _ in handle) - 1
-
         chunks = []
-        rows_read = 0
-        for chunk in pd.read_csv(
-            path, sep="_§_", engine="python", encoding="utf-8", chunksize=1000
-        ):
-            chunks.append(chunk)
-            rows_read += len(chunk)
-            progress_callback(rows_read / total_lines * 100)
+        with open(path, "rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            total_size = handle.tell()
+            handle.seek(0)
+            reader = pd.read_csv(
+                handle,
+                sep="_§_",
+                engine="python",
+                encoding="utf-8",
+                chunksize=1000,
+            )
+            for chunk in reader:
+                chunks.append(chunk)
+                progress_callback(handle.tell() / total_size * 100)
         df = pd.concat(chunks, ignore_index=True)
     else:
         df = pd.read_csv(path, sep="_§_", engine="python", encoding="utf-8")

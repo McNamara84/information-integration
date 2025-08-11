@@ -105,4 +105,7 @@ def test_load_bibliojobs_reports_progress(tmp_path):
     calls = []
     load_bibliojobs(path, progress_callback=lambda v: calls.append(v))
 
-    assert calls == pytest.approx([40.0, 80.0, 100.0])
+    assert len(calls) >= 2
+    assert calls == sorted(calls)
+    assert calls[-1] == pytest.approx(100.0)
+    assert all(0 < c <= 100 for c in calls)
