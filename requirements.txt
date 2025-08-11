@@ -1,0 +1,8 @@
+pandas
+numpy
+openpyxl
+fuzzywuzzy[speedup]
+sqlalchemy
+mysqlclient
+psycopg2-binary
+nltk

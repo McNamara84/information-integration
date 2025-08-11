@@ -98,43 +98,9 @@
 
 \chapter{Einleitung}
 
-Die zunehmende Digitalisierung des Arbeitsmarktes hat in den vergangenen Jahren zu einer exponentiellen Zunahme digitaler Stellenausschreibungen geführt. Diese Entwicklung eröffnet neue Möglichkeiten für datengetriebene Arbeitsmarktanalysen, stellt jedoch gleichzeitig erhebliche Anforderungen an die Qualität und Konsistenz der zugrundeliegenden Datenbestände. Insbesondere im Berufsfeld der Bibliotheks- und Informationswissenschaft, das sich durch eine heterogene Landschaft von Arbeitgebern aus öffentlichen und privaten Einrichtungen auszeichnet, ist eine systematische Aufbereitung und Analyse von Stellenmarktdaten von besonderem Interesse.
+Die Umsetzung des Datenintegrationsprozesses erfolgt in einer isolierten Python-Umgebung, die mit den Bibliotheken \texttt{pandas}, \texttt{numpy}, \texttt{openpyxl}, \texttt{fuzzywuzzy}, \texttt{sqlalchemy}, \texttt{mysqlclient}, \texttt{psycopg2-binary} und \texttt{nltk} ausgestattet ist.
 
-Die vorliegende Arbeit befasst sich mit der Aufbereitung und Integration eines umfangreichen Datensatzes von circa 23.000 Stellenausschreibungen aus dem Zeitraum 2014 bis 2025. Der Fokus liegt dabei auf der systematischen Bereinigung, Homogenisierung und Anreicherung der Metadaten als Vorbereitung für den Import in ein Data Warehouse. Diese Datenintegrationsprozesse bilden die Grundlage für belastbare statistische Analysen des Stellenmarktes im Bibliotheks- und Informationswesen.
-
-Die Herausforderungen bei der Integration heterogener Datenquellen sind vielfältig und reichen von syntaktischen Inkonsistenzen über fehlende Standardisierungen bis hin zu inhaltlichen Dubletten. Die systematische Bewältigung dieser Herausforderungen erfordert den Einsatz verschiedener Techniken der Datenbereinigung und -anreicherung, deren praktische Anwendung und kritische Reflexion im Zentrum dieser Arbeit stehen.
-
-\section{Problemstellung}
-
-Die Ausgangslage der vorliegenden Aufgabenstellung ist charakterisiert durch einen umfangreichen Rohdatensatz von Stellenausschreibungen im CSV-Format, der erhebliche Qualitätsprobleme aufweist, die eine direkte analytische Verwertung verhindern. Die Datensätze umfassen elf Metadatenfelder, darunter Ortsangaben, Arbeitgebernamen, Stellenkurzbeschreibungen und Ausschreibungsdaten, die durch das Feldtrennzeichen \texttt{\_§\_} separiert sind.
-
-Die zentralen Problemfelder lassen sich in drei Kategorien unterteilen:
-
-Erstens weisen die Daten erhebliche Inkonsistenzen und Fehler auf, insbesondere in den kritischen Feldern \texttt{\_LOCATION\_} und \texttt{\_COMPANY\_}. Diese Inkonsistenzen manifestieren sich in unterschiedlichen Schreibweisen derselben Entitäten, fehlerhaften Einträgen und uneinheitlichen Formatierungen. Die Heterogenität der Datenquellen hat zu einer Vielzahl von Datenqualitätsproblemen geführt, die gemäß der Fehlerklassifikation nach Naumann und Leser systematisch identifiziert und quantifiziert werden müssen.
-
-Zweitens existieren im Datensatz inhaltliche Dubletten in Form von Mehrfachausschreibungen identischer Stellen, die die statistische Validität nachfolgender Analysen gefährden würden. Diese Dubletten müssen zuverlässig identifiziert und aus dem Analysedatensatz entfernt werden, wobei sie gleichzeitig für mögliche Folgeuntersuchungen zu bewahren sind.
-
-Drittens fehlen dem Datensatz wesentliche analytische Dimensionen, die für eine umfassende Arbeitsmarktanalyse erforderlich sind. Die Ortsangaben enthalten keine regionalen Zuordnungen zu Bundesländern, und wichtige Stellencharakteristika wie Befristung, Arbeitsumfang (Vollzeit/Teilzeit) und Vergütungsinformationen sind nur unstrukturiert in Freitextfeldern enthalten. Diese Informationen müssen extrahiert und in strukturierter Form verfügbar gemacht werden.
-
-Die beschriebenen Datenqualitätsprobleme verhindern in ihrer Gesamtheit eine sinnvolle Integration der Daten in ein Data Warehouse und damit die Durchführung belastbarer statistischer Analysen. Ohne systematische Datenbereinigung und -anreicherung können keine verlässlichen Aussagen über Trends und Entwicklungen im Stellenmarkt der Bibliotheks- und Informationswissenschaft getroffen werden.
-
-\section{Ziel der Arbeit}
-
-Das primäre Ziel dieser Arbeit besteht in der Entwicklung und Implementierung eines systematischen Datenintegrationsprozesses, der die vorliegenden Rohdaten in einen analysierbaren, qualitätsgesicherten Datensatz transformiert. Dieser Prozess soll die identifizierten Datenqualitätsprobleme adressieren und die Daten für den Import in ein PostgreSQL-basiertes Data Warehouse vorbereiten.
-
-Im Einzelnen verfolgt die Arbeit folgende Teilziele:
-
-Die Durchführung eines umfassenden Data Profiling aller Metadatenfelder zur systematischen Identifikation und Quantifizierung von Datenfehlern. Die Ergebnisse werden gemäß der etablierten Fehlerklassifikation nach Naumann und Leser kategorisiert und hinsichtlich ihrer relativen Häufigkeit dokumentiert. Diese systematische Fehleranalyse bildet die Grundlage für gezielte Bereinigungsmaßnahmen und ermöglicht eine fundierte Bewertung der Datenqualität.
-
-Die Entwicklung und Anwendung von Bereinigungsverfahren für die kritischen Metadatenfelder \texttt{\_LOCATION\_} und \texttt{\_COMPANY\_}, um Inkonsistenzen zu beseitigen und eine einheitliche Datenbasis zu schaffen. Parallel dazu erfolgt die Identifikation und Separation inhaltlicher Dubletten, um die Integrität der späteren statistischen Analysen zu gewährleisten.
-
-Die Anreicherung des Datensatzes durch Integration externer Datenquellen und Extraktion impliziter Informationen. Dies umfasst die Verknüpfung mit einer MySQL-Datenbank zur Ergänzung regionaler Zuordnungen sowie die Anwendung von Extraktionsverfahren auf Freitextfelder zur Gewinnung strukturierter Informationen zu Beschäftigungsverhältnissen und Vergütung.
-
-Die Implementierung des gesamten Datenintegrationsprozesses in Form reproduzierbarer Skripte und Prozessketten, die eine vollständige Nachvollziehbarkeit und Wiederholbarkeit der Datenaufbereitung gewährleisten. Die entwickelten Verfahren sollen dabei so dokumentiert werden, dass sie als Vorlage für ähnliche Datenintegrationsprojekte dienen können.
-
-Abschließend soll die Arbeit eine kritische Reflexion der angewandten Methoden und erzielten Ergebnisse liefern, einschließlich einer Bewertung der verbleibenden Datenqualitätsprobleme und Empfehlungen für weiterführende Verbesserungsmaßnahmen. Die bereinigte und angereicherte Datenbasis soll schließlich die Grundlage für aussagekräftige statistische Analysen des Stellenmarktes im Bereich der Bibliotheks- und Informationswissenschaft bilden.
-
-\chapter{Methodik und Vorgehensweise}
+Zunächst wird ein umfangreiches Data Profiling durchgeführt, das strukturelle und inhaltliche Anomalien der Ausgangsdaten sichtbar macht. Auf dieser Grundlage folgen schrittweise Bereinigungen und Normalisierungen, wobei \texttt{fuzzywuzzy} zur Erkennung und Zusammenführung von Dubletten eingesetzt wird. Für die Anreicherung der Daten mit regionalen Informationen werden externe Referenzdaten eingebunden und über \texttt{sqlalchemy} mit den bestehenden Datensätzen verknüpft. Abschließend ermöglichen Skripte zur Extraktion von Freitextinformationen die Überführung unstrukturierter Angaben in auswertbare Felder. Diese methodische Kette gewährleistet eine transparente und reproduzierbare Aufbereitung des Datensatzes.
 
 \newpage
 \addcontentsline{toc}{chapter}{Eigenständigkeitserklärung}
