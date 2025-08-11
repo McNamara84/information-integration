@@ -24,8 +24,8 @@ def load_bibliojobs(
         Expected ``strftime`` format of the ``date`` column. Defaults to
         ``"%d-%m-%Y"``.
     progress_callback:
-        Optional function that receives the percentage of bytes read from the
-        file as a ``float`` between 0 and 100.
+        Optional function that receives the percentage of processed CSV rows as
+        a ``float`` between 0 and 100.
 
     Returns
     -------
@@ -40,19 +40,24 @@ def load_bibliojobs(
     # ``progress_callback`` is supplied the file is read in chunks so that the
     # caller can be informed about the progress of the operation.
     if progress_callback:
+        # Count rows (excluding header) for progress calculation.
+        with open(path_str, "r", encoding="utf-8") as f:
+            total_rows = sum(1 for _ in f) - 1
+        total_rows = max(total_rows, 1)
+
         chunks = []
-        total_size = os.path.getsize(path_str)
-        with open(path_str, "rb") as handle:
-            reader = pd.read_csv(
-                handle,
-                sep="_§_",
-                engine="python",
-                chunksize=1000,
-                encoding="utf-8",
-            )
-            for chunk in reader:
-                chunks.append(chunk)
-                progress_callback(handle.tell() / total_size * 100)
+        rows_read = 0
+        reader = pd.read_csv(
+            path_str,
+            sep="_§_",
+            engine="python",
+            encoding="utf-8",
+            chunksize=1000,
+        )
+        for chunk in reader:
+            chunks.append(chunk)
+            rows_read += len(chunk)
+            progress_callback(rows_read / total_rows * 100)
         df = pd.concat(chunks, ignore_index=True)
     else:
         df = pd.read_csv(path_str, sep="_§_", engine="python", encoding="utf-8")
