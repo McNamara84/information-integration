@@ -1,5 +1,5 @@
 import pandas as pd
-from profiling import profile_dataframe
+from profiling import _top_error, profile_dataframe
 
 
 def test_profile_dataframe_basic():
@@ -22,8 +22,11 @@ def test_profile_dataframe_basic():
 
 
 def test_none_as_top_error():
-    df = pd.DataFrame({"a": [None, None, "x"]})
-    profile = profile_dataframe(df)
+    series = pd.Series([None, None, "x"])
+    val, count = _top_error(series)
+    assert val is None
+    assert count == 2
+    profile = profile_dataframe(pd.DataFrame({"a": series}))
     col = profile[profile["Spalte"] == "a"].iloc[0]
     assert col["Häufigste Fehlerart"] == "None"
     assert col["Fehler Häufigkeit"] == 2

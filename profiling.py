@@ -63,6 +63,13 @@ def profile_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         else:
             top_value = ""
             top_value_count = 0
+        if error_count == 0:
+            error_display = ""
+        elif error_val is None:
+            error_display = "None"
+        else:
+            error_display = str(error_val)
+
         rows.append(
             {
                 "Spalte": column,
@@ -70,7 +77,7 @@ def profile_dataframe(df: pd.DataFrame) -> pd.DataFrame:
                 "Fehlende Werte": missing,
                 "Fehlende Werte %": round(missing / total * 100, 2) if total else 0.0,
                 "Eindeutige Werte": unique,
-                "Häufigste Fehlerart": "" if error_count == 0 else str(error_val),
+                "Häufigste Fehlerart": error_display,
                 "Fehler Häufigkeit": error_count,
                 "Fehler %": round(error_count / total * 100, 2) if total else 0.0,
                 "Häufigster Wert": top_value,

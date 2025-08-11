@@ -78,8 +78,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self._progress.setValue(0)
 
     def _show_profile(self) -> None:
-        if not self._button.isEnabled():
-            return
         stats = profile_dataframe(self._dataframe)
         window = ProfileWindow(stats, self)
         window.show()
