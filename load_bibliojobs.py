@@ -37,20 +37,17 @@ def load_bibliojobs(
     # caller can be informed about the progress of the operation.
     if progress_callback:
         chunks = []
-        with open(path, "rb") as handle:
-            handle.seek(0, os.SEEK_END)
-            total_size = handle.tell()
-            handle.seek(0)
+        total_size = os.path.getsize(path)
+        with open(path, "r", encoding="utf-8") as handle:
             reader = pd.read_csv(
                 handle,
                 sep="_§_",
                 engine="python",
-                encoding="utf-8",
                 chunksize=1000,
             )
             for chunk in reader:
                 chunks.append(chunk)
-                progress_callback(handle.tell() / total_size * 100)
+                progress_callback(handle.buffer.tell() / total_size * 100)
         df = pd.concat(chunks, ignore_index=True)
     else:
         df = pd.read_csv(path, sep="_§_", engine="python", encoding="utf-8")
