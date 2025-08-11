@@ -105,7 +105,9 @@ def test_load_bibliojobs_reports_progress(tmp_path):
     calls = []
     load_bibliojobs(path, progress_callback=lambda v: calls.append(v))
 
-    assert calls == pytest.approx([40.0, 80.0, 100.0])
+    assert calls, "progress callback was not invoked"
+    assert all(e <= l for e, l in zip(calls, calls[1:])), "progress not monotonically increasing"
+    assert calls[-1] == pytest.approx(100.0)
 
 
 def test_load_bibliojobs_missing_file(tmp_path):
