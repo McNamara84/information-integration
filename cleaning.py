@@ -1,7 +1,7 @@
 import html
 import json
 import os
-import re  # regular expression operations
+import re
 import time
 from typing import Callable, Optional, Dict
 import requests
