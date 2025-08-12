@@ -53,7 +53,7 @@ def fetch_german_license_plates_from_api() -> Dict[str, str]:
     endpoint = "https://query.wikidata.org/sparql"
     headers = {
         'Accept': 'application/sparql-results+json',
-        'User-Agent': 'Bibliojobs-Data-Cleaning-Tool/1.0 (Educational Project; Contact: bibliojobs@example.com)'
+        'User-Agent': 'Bibliojobs-Data-Cleaning-Tool/1.0 (Educational Project; Contact: ehrmann@gfz.de)'
     }
     
     # Retry mechanism with exponential backoff
