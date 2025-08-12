@@ -24,7 +24,7 @@ Ein Projekt im Rahmen der Hausarbeit im 6. Fachsemester des Studiengangs **Infor
 
 ```bash
 # Repository klonen
-git clone https://github.com/<dein-user>/information-integration.git
+git clone https://github.com/McNamara84/information-integration.git
 cd information-integration
 
 # Virtuelle Umgebung anlegen
