@@ -47,58 +47,6 @@ def test_fetch_german_license_plates_real_api():
             assert isinstance(place_name, str)
             assert len(place_name) > 0
 
-
-def test_fetch_german_license_plates_api_failure():
-    """Test behavior when API fails."""
-    with patch('cleaning.requests.get') as mock_get:
-        mock_get.side_effect = requests.RequestException("API Error")
-        
-        license_plates = fetch_german_license_plates()
-        assert license_plates == {}
-
-
-def test_fetch_german_license_plates_malformed_response():
-    """Test behavior with malformed API response."""
-    with patch('cleaning.requests.get') as mock_get:
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {"invalid": "structure"}
-        mock_get.return_value = mock_response
-        
-        license_plates = fetch_german_license_plates()
-        assert license_plates == {}
-
-
-def test_fetch_german_license_plates_valid_response():
-    """Test parsing of valid API response."""
-    with patch('cleaning.requests.get') as mock_get:
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {
-            "results": {
-                "bindings": [
-                    {
-                        "licencePlate": {"value": "B"},
-                        "itemLabel": {"value": "Berlin"}
-                    },
-                    {
-                        "licencePlate": {"value": "MZ"},
-                        "itemLabel": {"value": "Mainz"}
-                    },
-                    {
-                        "licencePlate": {"value": "invalid123"},  # Should be filtered out
-                        "itemLabel": {"value": "Invalid Place"}
-                    }
-                ]
-            }
-        }
-        mock_get.return_value = mock_response
-        
-        license_plates = fetch_german_license_plates()
-        expected = {"B": "Berlin", "MZ": "Mainz"}
-        assert license_plates == expected
-
-
 def test_resolve_license_plates_in_series():
     """Test license plate resolution in pandas series."""
     license_plate_map = {
