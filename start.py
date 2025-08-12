@@ -1,6 +1,10 @@
+from __future__ import annotations
+
 import argparse
 import sys
 from PyQt5 import QtCore, QtWidgets
+
+from profiling import profile_dataframe
 
 from load_bibliojobs import load_bibliojobs
 
@@ -40,6 +44,15 @@ class MainWindow(QtWidgets.QMainWindow):
         self._status.addPermanentWidget(self._progress)
         self._status.showMessage("CSV-Datei wird eingelesen...")
 
+        self._button = QtWidgets.QPushButton("Data Profiling")
+        self._button.setEnabled(False)
+        self._button.clicked.connect(self._show_profile)
+        container = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(container)
+        layout.addWidget(self._button)
+        layout.addStretch()
+        self.setCentralWidget(container)
+
         self._worker = LoadWorker(path)
         self._thread = QtCore.QThread(self)
         self._worker.moveToThread(self._thread)
@@ -53,17 +66,64 @@ class MainWindow(QtWidgets.QMainWindow):
         self._worker.error.connect(self._worker.deleteLater)
         self._thread.finished.connect(self._thread.deleteLater)
         self._thread.start()
+        self._profile_window: ProfileWindow | None = None
 
     @QtCore.pyqtSlot(object)
     def _on_finished(self, df) -> None:
         self._status.showMessage("Einlesen abgeschlossen", 5000)
         self._progress.setValue(100)
-        self.dataframe = df
+        self._dataframe = df
+        self._button.setEnabled(True)
 
     @QtCore.pyqtSlot(str)
     def _on_error(self, message: str) -> None:
         self._status.showMessage(message, 5000)
         self._progress.setValue(0)
+
+    def _show_profile(self) -> None:
+        if self._profile_window is not None:
+            self._profile_window.close()
+            self._profile_window = None
+        stats = profile_dataframe(self._dataframe)
+        window = ProfileWindow(stats, self)
+        window.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        window.closed.connect(self._on_profile_window_destroyed)
+        window.show()
+        self._profile_window = window
+
+    def _on_profile_window_destroyed(self) -> None:
+        self._profile_window = None
+
+
+class ProfileWindow(QtWidgets.QMainWindow):
+    closed = QtCore.pyqtSignal()
+
+    def __init__(self, stats, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Data Profiling")
+        table = QtWidgets.QTableWidget(self)
+        table.setAlternatingRowColors(True)
+        table.setRowCount(len(stats))
+        table.setColumnCount(len(stats.columns))
+        table.setHorizontalHeaderLabels(stats.columns.tolist())
+        for row_idx, (_, row) in enumerate(stats.iterrows()):
+            for col_idx, value in enumerate(row):
+                item = QtWidgets.QTableWidgetItem(str(value))
+                table.setItem(row_idx, col_idx, item)
+        table.resizeColumnsToContents()
+        self.setCentralWidget(table)
+
+        total_width = table.verticalHeader().width() + table.frameWidth() * 2
+        total_width += table.verticalScrollBar().sizeHint().width()
+        for i in range(table.columnCount()):
+            total_width += table.columnWidth(i)
+        screen = QtWidgets.QApplication.primaryScreen()
+        screen_width = screen.availableGeometry().width() if screen else total_width
+        self.resize(min(total_width, screen_width), 400)
+
+    def closeEvent(self, event):
+        self.closed.emit()
+        super().closeEvent(event)
 
 
 def main() -> None:
