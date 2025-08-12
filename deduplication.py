@@ -40,7 +40,8 @@ def find_content_duplicates(
     columns:
         Iterable of column names to use for the similarity comparison. If
         ``None`` the default columns ``("title", "jobdescription", "company",
-        "location")`` are used.
+        "location")`` are used. Columns that are not present in *df* are
+        ignored.
     threshold:
          Minimum similarity score (0-100) required to treat two rows as
          duplicates. Defaults to ``80``.
@@ -54,8 +55,16 @@ def find_content_duplicates(
     if columns is None:
         columns = ("title", "jobdescription", "company", "location")
 
+    # Use only columns that are present in the dataframe. Missing columns are
+    # silently ignored so that the helper works with partially populated
+    # datasets as well. If none of the desired columns exist we immediately
+    # return an empty result set.
+    selected = [col for col in columns if col in df.columns]
+    if not selected:
+        return pd.DataFrame(columns=list(df.columns) + ["__dup_group"])
+
     # Prepare normalised combined text for each row
-    relevant = df.loc[:, columns].fillna("").map(_normalise)
+    relevant = df.loc[:, selected].fillna("").map(_normalise)
     combined = relevant.agg(" ".join, axis=1)
 
     # Pairwise comparison to find similar rows

@@ -36,3 +36,18 @@ def test_find_content_duplicates_none():
 
     dup_df = find_content_duplicates(df, threshold=80)
     assert dup_df.empty
+
+
+def test_find_content_duplicates_missing_columns():
+    """Missing optional columns are ignored during duplicate detection."""
+    df = pd.DataFrame({
+        "jobid": [1, 2],
+        # The "title" column is intentionally omitted here
+        "jobdescription": ["Leitung der Stadtbibliothek", "Leitung Stadtbibliothek"],
+        "company": ["Stadtbibliothek Berlin", "Stadt-Bibliothek Berlin"],
+        "location": ["Berlin", "Berlin"],
+    })
+
+    dup_df = find_content_duplicates(df, threshold=80)
+    assert set(dup_df.index) == {0, 1}
+    assert "__dup_group" in dup_df.columns
