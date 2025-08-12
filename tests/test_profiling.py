@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 from profiling import profile_dataframe, top_error, get_all_error_types
 
 
