@@ -10,6 +10,7 @@ from PyQt5 import QtCore, QtWidgets
 from profiling import profile_dataframe, get_all_error_types
 
 from load_bibliojobs import load_bibliojobs
+from cleaning import clean_dataframe
 
 
 ERROR_TYPES = [
@@ -54,6 +55,23 @@ class LoadWorker(QtCore.QObject):
         self.finished.emit(dataframe)
 
 
+class CleanWorker(QtCore.QObject):
+    finished = QtCore.pyqtSignal(object)
+    progress = QtCore.pyqtSignal(int)
+
+    def __init__(self, dataframe) -> None:
+        super().__init__()
+        self._dataframe = dataframe
+
+    @QtCore.pyqtSlot()
+    def run(self):
+        def callback(value: float) -> None:
+            self.progress.emit(int(value))
+
+        cleaned = clean_dataframe(self._dataframe, progress_callback=callback)
+        self.finished.emit(cleaned)
+
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, path: str) -> None:
         super().__init__()
@@ -69,9 +87,22 @@ class MainWindow(QtWidgets.QMainWindow):
         self._button = QtWidgets.QPushButton("Data Profiling")
         self._button.setEnabled(False)
         self._button.clicked.connect(self._show_profile)
+
+        self._clean_button = QtWidgets.QPushButton("Datensätze bereinigen")
+        self._clean_button.setEnabled(False)
+        self._clean_button.clicked.connect(self._clean_data)
+
+        self._export_cleaned_button = QtWidgets.QPushButton(
+            "Ergebnis als Exceltabelle speichern"
+        )
+        self._export_cleaned_button.hide()
+        self._export_cleaned_button.clicked.connect(self._export_cleaned)
+
         container = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(container)
         layout.addWidget(self._button)
+        layout.addWidget(self._clean_button)
+        layout.addWidget(self._export_cleaned_button)
         layout.addStretch()
         self.setCentralWidget(container)
 
@@ -96,6 +127,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._progress.setValue(100)
         self._dataframe = df
         self._button.setEnabled(True)
+        self._clean_button.setEnabled(True)
 
     @QtCore.pyqtSlot(str)
     def _on_error(self, message: str) -> None:
@@ -115,6 +147,43 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _on_profile_window_destroyed(self) -> None:
         self._profile_window = None
+
+    def _clean_data(self) -> None:
+        self._status.showMessage("Datensätze werden bereinigt...")
+        self._progress.setValue(0)
+        self._clean_button.setEnabled(False)
+
+        self._clean_worker = CleanWorker(self._dataframe)
+        self._clean_thread = QtCore.QThread(self)
+        self._clean_worker.moveToThread(self._clean_thread)
+        self._clean_thread.started.connect(self._clean_worker.run)
+        self._clean_worker.progress.connect(self._progress.setValue)
+        self._clean_worker.finished.connect(self._on_cleaned)
+        self._clean_worker.finished.connect(self._clean_thread.quit)
+        self._clean_worker.finished.connect(self._clean_worker.deleteLater)
+        self._clean_thread.finished.connect(self._clean_thread.deleteLater)
+        self._clean_thread.start()
+
+    @QtCore.pyqtSlot(object)
+    def _on_cleaned(self, df) -> None:
+        self._dataframe = df
+        self._status.showMessage("Bereinigung abgeschlossen", 5000)
+        self._progress.setValue(100)
+        self._export_cleaned_button.show()
+
+    def _export_cleaned(self) -> None:
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Bereinigte Daten exportieren", filter="Excel Dateien (*.xlsx)"
+        )
+        if not path:
+            return
+        self._dataframe.to_excel(path, index=False)
+        if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Export erfolgreich",
+                f"Daten wurden erfolgreich exportiert nach:\n{path}",
+            )
 
 
 class ProfileWindow(QtWidgets.QMainWindow):
