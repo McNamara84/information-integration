@@ -5,7 +5,7 @@ import os
 import sys
 
 import pandas as pd
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, QtGui
 
 from profiling import profile_dataframe, get_all_error_types
 
@@ -69,9 +69,13 @@ class MainWindow(QtWidgets.QMainWindow):
         self._button = QtWidgets.QPushButton("Data Profiling")
         self._button.setEnabled(False)
         self._button.clicked.connect(self._show_profile)
+        self._dup_button = QtWidgets.QPushButton("Dubletten entfernen")
+        self._dup_button.setEnabled(False)
+        self._dup_button.clicked.connect(self._show_duplicates)
         container = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(container)
         layout.addWidget(self._button)
+        layout.addWidget(self._dup_button)
         layout.addStretch()
         self.setCentralWidget(container)
 
@@ -89,6 +93,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._thread.finished.connect(self._thread.deleteLater)
         self._thread.start()
         self._profile_window: ProfileWindow | None = None
+        self._duplicates_window: DuplicatesWindow | None = None
 
     @QtCore.pyqtSlot(object)
     def _on_finished(self, df) -> None:
@@ -96,6 +101,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._progress.setValue(100)
         self._dataframe = df
         self._button.setEnabled(True)
+        self._dup_button.setEnabled(True)
 
     @QtCore.pyqtSlot(str)
     def _on_error(self, message: str) -> None:
@@ -115,6 +121,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _on_profile_window_destroyed(self) -> None:
         self._profile_window = None
+
+    def _show_duplicates(self) -> None:
+        if self._duplicates_window is not None:
+            self._duplicates_window.close()
+            self._duplicates_window = None
+        window = DuplicatesWindow(self._dataframe, self)
+        window.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        window.closed.connect(self._on_duplicates_window_destroyed)
+        window.show()
+        self._duplicates_window = window
+
+    def _on_duplicates_window_destroyed(self) -> None:
+        self._duplicates_window = None
 
 
 class ProfileWindow(QtWidgets.QMainWindow):
@@ -205,6 +224,47 @@ class ProfileWindow(QtWidgets.QMainWindow):
                 f"Bericht wurde erfolgreich exportiert nach:\n{path}\n\n"
                 f"Anzahl Zeilen im Bericht: {len(report_df)}"
             )
+
+    def closeEvent(self, event):
+        self.closed.emit()
+        super().closeEvent(event)
+
+
+class DuplicatesWindow(QtWidgets.QMainWindow):
+    closed = QtCore.pyqtSignal()
+
+    def __init__(self, dataframe, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Dubletten")
+
+        dup_df = dataframe[dataframe.duplicated(keep=False)].copy()
+        dup_df.sort_values(list(dataframe.columns), inplace=True)
+
+        container = QtWidgets.QWidget(self)
+        layout = QtWidgets.QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        table = QtWidgets.QTableWidget(self)
+        table.setAlternatingRowColors(True)
+        table.setRowCount(len(dup_df))
+        table.setColumnCount(len(dup_df.columns))
+        table.setHorizontalHeaderLabels(dup_df.columns.tolist())
+
+        seen = set()
+        for row_idx, (_, row) in enumerate(dup_df.iterrows()):
+            key = tuple(row)
+            color = QtGui.QColor("lightgreen") if key not in seen else QtGui.QColor("lightcoral")
+            seen.add(key)
+            for col_idx, value in enumerate(row):
+                item = QtWidgets.QTableWidgetItem(str(value))
+                item.setBackground(color)
+                table.setItem(row_idx, col_idx, item)
+
+        table.resizeColumnsToContents()
+        layout.addWidget(table)
+        self._table = table
+
+        self.setCentralWidget(container)
 
     def closeEvent(self, event):
         self.closed.emit()
