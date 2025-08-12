@@ -20,10 +20,11 @@ def clean_dataframe(df: pd.DataFrame, progress_callback: Optional[Callable[[floa
     object_cols = cleaned.select_dtypes(include=["object"]).columns
     total = len(object_cols)
     for idx, col in enumerate(object_cols, start=1):
-        series = cleaned[col].dropna().astype(str)
-        series = series.apply(html.unescape)
-        series = series.apply(lambda x: re.sub(r"<.*?>", "", x))
-        cleaned.loc[series.index, col] = series
+        cleaned[col] = cleaned[col].apply(
+            lambda x: html.unescape(re.sub(r"<.*?>", "", str(x)))
+            if pd.notna(x)
+            else x
+        )
         if progress_callback and total:
             progress_callback(idx / total * 100)
     if progress_callback:
