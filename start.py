@@ -2,11 +2,32 @@ from __future__ import annotations
 
 import argparse
 import sys
+
+import pandas as pd
 from PyQt5 import QtCore, QtWidgets
 
 from profiling import profile_dataframe
 
 from load_bibliojobs import load_bibliojobs
+
+
+ERROR_TYPES = [
+    "Unzulässige Werte",
+    "Verletzte Attributabhängigkeiten",
+    "Eindeutigkeitsverletzungen",
+    "Verletzte referenzielle Integrität",
+    "Fehlende Werte",
+    "Schreibfehler",
+    "Falsche Werte",
+    "Falsche Referenzen",
+    "Kryptische Werte",
+    "Eingebettete Werte",
+    "Falsche Zuordnungen",
+    "Widersprüchliche Werte",
+    "Transpositionen",
+    "Duplikate",
+    "Datenkonflikte",
+]
 
 
 class LoadWorker(QtCore.QObject):
@@ -101,6 +122,12 @@ class ProfileWindow(QtWidgets.QMainWindow):
     def __init__(self, stats, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Data Profiling")
+        self._stats = stats
+
+        container = QtWidgets.QWidget(self)
+        layout = QtWidgets.QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+
         table = QtWidgets.QTableWidget(self)
         table.setAlternatingRowColors(True)
         table.setRowCount(len(stats))
@@ -111,7 +138,14 @@ class ProfileWindow(QtWidgets.QMainWindow):
                 item = QtWidgets.QTableWidgetItem(str(value))
                 table.setItem(row_idx, col_idx, item)
         table.resizeColumnsToContents()
-        self.setCentralWidget(table)
+        layout.addWidget(table)
+        self._table = table
+
+        self._export_button = QtWidgets.QPushButton("Bericht exportieren", self)
+        self._export_button.clicked.connect(self._export_report)
+        layout.addWidget(self._export_button)
+
+        self.setCentralWidget(container)
 
         total_width = table.verticalHeader().width() + table.frameWidth() * 2
         total_width += table.verticalScrollBar().sizeHint().width()
@@ -120,6 +154,29 @@ class ProfileWindow(QtWidgets.QMainWindow):
         screen = QtWidgets.QApplication.primaryScreen()
         screen_width = screen.availableGeometry().width() if screen else total_width
         self.resize(min(total_width, screen_width), 400)
+
+    def _export_report(self) -> None:
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Bericht exportieren", filter="Excel Dateien (*.xlsx)"
+        )
+        if not path:
+            return
+        rows = []
+        for _, row in self._stats.iterrows():
+            if row["Fehlende Werte %"] >= row["Fehler %"]:
+                error_type = "Fehlende Werte"
+                rate = row["Fehlende Werte %"]
+            else:
+                error_type = "Schreibfehler"
+                rate = row["Fehler %"]
+            rows.append(
+                {
+                    "Attribut": row["Spalte"],
+                    "Fehlertyp": error_type,
+                    "Fehlerquote": rate,
+                }
+            )
+        pd.DataFrame(rows).to_excel(path, index=False)
 
     def closeEvent(self, event):
         self.closed.emit()
