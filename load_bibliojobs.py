@@ -63,8 +63,8 @@ def load_bibliojobs(
     else:
         df = pd.read_csv(path_str, sep="_§_", engine="python", encoding="utf-8")
 
-    # Remove leading/trailing underscores and standardise column names.
-    normalised = df.columns.str.strip("_").str.lower()
+    # Remove leading/trailing underscores and asterisks, standardise column names.
+    normalised = df.columns.str.strip("_*").str.lower()
     duplicates = normalised[normalised.duplicated()]
     if not duplicates.empty:
         raise ValueError(
@@ -74,27 +74,32 @@ def load_bibliojobs(
     df.columns = normalised
 
     # Convert numeric columns.
-    jobid_numeric = pd.to_numeric(df["jobid"], errors="coerce")
-    invalid_jobids = df.loc[jobid_numeric.isna(), "jobid"].dropna().unique()
-    if invalid_jobids.size:
-        logger.warning(
-            "Non-numeric jobid values encountered: %s",
-            invalid_jobids.tolist(),
-        )
-    df["jobid"] = jobid_numeric.astype("Int64")
-    df["geo_lat"] = pd.to_numeric(df["geo_lat"], errors="coerce")
-    df["geo_lon"] = pd.to_numeric(df["geo_lon"], errors="coerce")
+    if "jobid" in df.columns:
+        jobid_numeric = pd.to_numeric(df["jobid"], errors="coerce")
+        invalid_jobids = df.loc[jobid_numeric.isna(), "jobid"].dropna().unique()
+        if invalid_jobids.size:
+            logger.warning(
+                "Non-numeric jobid values encountered: %s",
+                invalid_jobids.tolist(),
+            )
+        df["jobid"] = jobid_numeric.astype("Int64")
+    
+    if "geo_lat" in df.columns:
+        df["geo_lat"] = pd.to_numeric(df["geo_lat"], errors="coerce")
+    if "geo_lon" in df.columns:
+        df["geo_lon"] = pd.to_numeric(df["geo_lon"], errors="coerce")
 
     # Parse the date column.
-    raw_dates = df["date"].copy()
-    df["date"] = pd.to_datetime(raw_dates, format=date_format, errors="coerce")
-    invalid_dates = raw_dates[df["date"].isna() & raw_dates.notna()].unique()
-    if invalid_dates.size:
-        logger.warning(
-            "Date values not matching format %s encountered: %s",
-            date_format,
-            invalid_dates.tolist(),
-        )
+    if "date" in df.columns:
+        raw_dates = df["date"].copy()
+        df["date"] = pd.to_datetime(raw_dates, format=date_format, errors="coerce")
+        invalid_dates = raw_dates[df["date"].isna() & raw_dates.notna()].unique()
+        if invalid_dates.size:
+            logger.warning(
+                "Date values not matching format %s encountered: %s",
+                date_format,
+                invalid_dates.tolist(),
+            )
 
     return df
 

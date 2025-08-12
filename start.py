@@ -161,22 +161,30 @@ class ProfileWindow(QtWidgets.QMainWindow):
         )
         if not path:
             return
+        
+        # Create the report according to requirements:
+        # 1. Spalte: untersuchtes Attribut
+        # 2. Spalte: Fehlertyp gemäss der Fehlerklassifikation von Nauman/Leser  
+        # 3. Spalte: relative Fehlerquote
         rows = []
         for _, row in self._stats.iterrows():
-            if row["Fehlende Werte %"] >= row["Fehler %"]:
-                error_type = "Fehlende Werte"
-                rate = row["Fehlende Werte %"]
-            else:
-                error_type = "Schreibfehler"
-                rate = row["Fehler %"]
             rows.append(
                 {
                     "Attribut": row["Spalte"],
-                    "Fehlertyp": error_type,
-                    "Fehlerquote": rate,
+                    "Fehlertyp": row["Hauptfehlertyp (Naumann/Leser)"],
+                    "Relative Fehlerquote (%)": row["Hauptfehlerrate %"],
                 }
             )
-        pd.DataFrame(rows).to_excel(path, index=False)
+        
+        report_df = pd.DataFrame(rows)
+        report_df.to_excel(path, index=False)
+        
+        # Show success message
+        QtWidgets.QMessageBox.information(
+            self, 
+            "Export erfolgreich", 
+            f"Bericht wurde erfolgreich exportiert nach:\n{path}"
+        )
 
     def closeEvent(self, event):
         self.closed.emit()
