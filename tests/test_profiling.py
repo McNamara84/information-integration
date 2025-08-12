@@ -67,3 +67,31 @@ def test_profile_window_width_respects_screen():
     assert total_w > screen_width
     assert win2.width() == screen_width
     win2.close()
+
+
+def test_profile_window_cleanup():
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PyQt5 import QtWidgets
+    from start import MainWindow
+
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    win = MainWindow.__new__(MainWindow)
+    QtWidgets.QMainWindow.__init__(win)
+    win._dataframe = pd.DataFrame({"a": [1]})
+    win._profile_window = None
+
+    win._show_profile()
+    first = win._profile_window
+    assert first.isVisible()
+
+    win._show_profile()
+    app.processEvents()
+    assert not first.isVisible()
+
+    win._profile_window.close()
+    app.processEvents()
+    assert win._profile_window is None
+    win.close()

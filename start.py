@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import sys
 from PyQt5 import QtCore, QtWidgets
@@ -64,6 +66,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._worker.error.connect(self._worker.deleteLater)
         self._thread.finished.connect(self._thread.deleteLater)
         self._thread.start()
+        self._profile_window: ProfileWindow | None = None
 
     @QtCore.pyqtSlot(object)
     def _on_finished(self, df) -> None:
@@ -78,13 +81,23 @@ class MainWindow(QtWidgets.QMainWindow):
         self._progress.setValue(0)
 
     def _show_profile(self) -> None:
+        if self._profile_window is not None:
+            self._profile_window.close()
+            self._profile_window = None
         stats = profile_dataframe(self._dataframe)
         window = ProfileWindow(stats, self)
+        window.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        window.closed.connect(self._on_profile_window_destroyed)
         window.show()
-        self._profile_window = window  # prevent garbage collection
+        self._profile_window = window
+
+    def _on_profile_window_destroyed(self) -> None:
+        self._profile_window = None
 
 
 class ProfileWindow(QtWidgets.QMainWindow):
+    closed = QtCore.pyqtSignal()
+
     def __init__(self, stats, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Data Profiling")
@@ -107,6 +120,10 @@ class ProfileWindow(QtWidgets.QMainWindow):
         screen = QtWidgets.QApplication.primaryScreen()
         screen_width = screen.availableGeometry().width() if screen else total_width
         self.resize(min(total_width, screen_width), 400)
+
+    def closeEvent(self, event):
+        self.closed.emit()
+        super().closeEvent(event)
 
 
 def main() -> None:
