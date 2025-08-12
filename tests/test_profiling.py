@@ -44,7 +44,7 @@ def test_profile_window_width_respects_screen():
     win = ProfileWindow(stats)
     win.show()
     app.processEvents()
-    table = win.centralWidget()
+    table = win.centralWidget().findChild(QtWidgets.QTableWidget)
     expected = table.verticalHeader().width() + table.frameWidth() * 2
     expected += table.verticalScrollBar().sizeHint().width()
     for i in range(table.columnCount()):
@@ -59,7 +59,7 @@ def test_profile_window_width_respects_screen():
     win2 = ProfileWindow(stats_wide)
     win2.show()
     app.processEvents()
-    table2 = win2.centralWidget()
+    table2 = win2.centralWidget().findChild(QtWidgets.QTableWidget)
     total_w = table2.verticalHeader().width() + table2.frameWidth() * 2
     total_w += table2.verticalScrollBar().sizeHint().width()
     for i in range(table2.columnCount()):
@@ -94,4 +94,35 @@ def test_profile_window_cleanup():
     win._profile_window.close()
     app.processEvents()
     assert win._profile_window is None
+    win.close()
+
+
+def test_export_report(tmp_path, monkeypatch):
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PyQt5 import QtWidgets
+    from start import ProfileWindow
+
+    df = pd.DataFrame({"a": [1, None], "b": ["??", "x"]})
+    stats = profile_dataframe(df)
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    win = ProfileWindow(stats)
+
+    file_path = tmp_path / "report.xlsx"
+    monkeypatch.setattr(
+        QtWidgets.QFileDialog, "getSaveFileName", lambda *a, **k: (str(file_path), "")
+    )
+
+    win._export_button.click()
+    app.processEvents()
+
+    assert file_path.exists()
+    report = pd.read_excel(file_path)
+    row_a = report[report["Attribut"] == "a"].iloc[0]
+    assert row_a["Fehlertyp"] == "Fehlende Werte"
+    assert row_a["Fehlerquote"] == 50.0
+    row_b = report[report["Attribut"] == "b"].iloc[0]
+    assert row_b["Fehlertyp"] == "Schreibfehler"
+    assert row_b["Fehlerquote"] == 50.0
     win.close()
