@@ -52,8 +52,8 @@ def _expand_location(value: str):
 def _get_location_from_wikidata(code: str) -> Optional[str]:
     url = "https://query.wikidata.org/sparql"
     query = (
-        f'SELECT ?itemLabel WHERE {{ ?item wdt:P395 "{code}" '
-        'SERVICE wikibase:label { bd:serviceParam wikibase:language "de" } }} LIMIT 1'
+        f'SELECT ?itemLabel WHERE {{ ?item wdt:P395 "{code}".'
+        ' SERVICE wikibase:label { bd:serviceParam wikibase:language "de" }. }} LIMIT 1'
     )
     params = {"query": query, "format": "json"}
     headers = {"User-Agent": "information-integration/1.0"}
