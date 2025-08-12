@@ -1,7 +1,7 @@
 """Data profiling utilities for the Bibliojobs dataset."""
 from __future__ import annotations
 
-from typing import Any, Dict
+from typing import Any
 
 import pandas as pd
 
@@ -9,7 +9,7 @@ import pandas as pd
 ERROR_VALUES = ["", "??", "na", "n/a", "null", None]
 
 
-def _top_error(series: pd.Series) -> tuple[Any, int]:
+def top_error(series: pd.Series) -> tuple[Any, int]:
     """Return the most frequent error marker and its count for *series*.
 
     Parameters
@@ -50,12 +50,12 @@ def profile_dataframe(df: pd.DataFrame) -> pd.DataFrame:
         Wert mit der höchsten Auftretenshäufigkeit und sein prozentualer Anteil.
     """
     total = len(df)
-    rows: list[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for column in df.columns:
         series = df[column]
         missing = int(series.isna().sum())
         unique = int(series.nunique(dropna=True))
-        error_val, error_count = _top_error(series)
+        error_val, error_count = top_error(series)
         counts = series.value_counts(dropna=True)
         if not counts.empty:
             top_value = counts.idxmax()
@@ -87,4 +87,4 @@ def profile_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-__all__ = ["profile_dataframe"]
+__all__ = ["profile_dataframe", "top_error"]

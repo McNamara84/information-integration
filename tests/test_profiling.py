@@ -1,5 +1,5 @@
 import pandas as pd
-from profiling import _top_error, profile_dataframe
+from profiling import profile_dataframe, top_error
 
 
 def test_profile_dataframe_basic():
@@ -23,7 +23,7 @@ def test_profile_dataframe_basic():
 
 def test_none_as_top_error():
     series = pd.Series([None, None, "x"])
-    val, count = _top_error(series)
+    val, count = top_error(series)
     assert val is None
     assert count == 2
     profile = profile_dataframe(pd.DataFrame({"a": series}))
