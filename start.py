@@ -11,6 +11,7 @@ from profiling import profile_dataframe, get_all_error_types
 
 from load_bibliojobs import load_bibliojobs
 from cleaning import clean_dataframe
+from duplicates import find_and_remove_duplicates
 
 
 ERROR_TYPES = [
@@ -80,6 +81,25 @@ class CleanWorker(QtCore.QObject):
         self.finished.emit(cleaned)
 
 
+class DedupeWorker(QtCore.QObject):
+    finished = QtCore.pyqtSignal(object, object)
+    progress = QtCore.pyqtSignal(int)
+
+    def __init__(self, dataframe) -> None:
+        super().__init__()
+        self._dataframe = dataframe
+
+    @QtCore.pyqtSlot()
+    def run(self):
+        def callback(value: float) -> None:
+            self.progress.emit(int(value))
+
+        cleaned, duplicates = find_and_remove_duplicates(
+            self._dataframe, progress_callback=callback
+        )
+        self.finished.emit(cleaned, duplicates)
+
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, path: str) -> None:
         super().__init__()
@@ -99,6 +119,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._clean_button = QtWidgets.QPushButton("Datensätze bereinigen")
         self._clean_button.setEnabled(False)
         self._clean_button.clicked.connect(self._clean_data)
+        self._dedupe_button = QtWidgets.QPushButton("Dubletten entfernen")
+        self._dedupe_button.setEnabled(False)
+        self._dedupe_button.clicked.connect(self._remove_duplicates)
+
 
         self._export_cleaned_button = QtWidgets.QPushButton(
             "Ergebnis als Exceltabelle speichern"
@@ -110,6 +134,7 @@ class MainWindow(QtWidgets.QMainWindow):
         layout = QtWidgets.QVBoxLayout(container)
         layout.addWidget(self._button)
         layout.addWidget(self._clean_button)
+        layout.addWidget(self._dedupe_button)
         layout.addStretch()
         layout.addWidget(self._export_cleaned_button)
         self.setCentralWidget(container)
@@ -128,6 +153,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._thread.finished.connect(self._thread.deleteLater)
         self._thread.start()
         self._profile_window: ProfileWindow | None = None
+        self._duplicates_window: DuplicatesWindow | None = None
 
     @QtCore.pyqtSlot(object)
     def _on_finished(self, df) -> None:
@@ -178,7 +204,49 @@ class MainWindow(QtWidgets.QMainWindow):
         self._dataframe = df
         self._status.showMessage("Bereinigung abgeschlossen", 5000)
         self._progress.setValue(100)
+        self._dedupe_button.setEnabled(True)
         self._export_cleaned_button.show()
+
+    def _remove_duplicates(self) -> None:
+        self._status.showMessage("Dublettensuche läuft...")
+        self._progress.setValue(0)
+        self._dedupe_button.setEnabled(False)
+
+        self._dedupe_worker = DedupeWorker(self._dataframe)
+        self._dedupe_thread = QtCore.QThread(self)
+        self._dedupe_worker.moveToThread(self._dedupe_thread)
+        self._dedupe_thread.started.connect(self._dedupe_worker.run)
+        self._dedupe_worker.progress.connect(self._progress.setValue)
+        self._dedupe_worker.finished.connect(self._on_deduped)
+        self._dedupe_worker.finished.connect(self._dedupe_thread.quit)
+        self._dedupe_worker.finished.connect(self._dedupe_worker.deleteLater)
+        self._dedupe_thread.finished.connect(self._dedupe_thread.deleteLater)
+        self._dedupe_thread.start()
+
+    @QtCore.pyqtSlot(object, object)
+    def _on_deduped(self, df, duplicates_df) -> None:
+        self._dataframe = df
+        self._status.showMessage("Dublettensuche abgeschlossen", 5000)
+        self._progress.setValue(100)
+        self._dedupe_button.setEnabled(True)
+        if not duplicates_df.empty:
+            if self._duplicates_window is not None:
+                self._duplicates_window.close()
+            window = DuplicatesWindow(duplicates_df, self)
+            window.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+            window.closed.connect(self._on_duplicates_window_destroyed)
+            window.show()
+            self._duplicates_window = window
+        else:
+            if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+                QtWidgets.QMessageBox.information(
+                    self,
+                    "Keine Dubletten",
+                    "Es wurden keine Dubletten gefunden.",
+                )
+
+    def _on_duplicates_window_destroyed(self) -> None:
+        self._duplicates_window = None
 
     def _export_cleaned(self) -> None:
         path, _ = QtWidgets.QFileDialog.getSaveFileName(
@@ -283,6 +351,43 @@ class ProfileWindow(QtWidgets.QMainWindow):
                 f"Bericht wurde erfolgreich exportiert nach:\n{path}\n\n"
                 f"Anzahl Zeilen im Bericht: {len(report_df)}"
             )
+
+    def closeEvent(self, event):
+        self.closed.emit()
+        super().closeEvent(event)
+
+
+class DuplicatesWindow(QtWidgets.QMainWindow):
+    closed = QtCore.pyqtSignal()
+
+    def __init__(self, dataframe, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Gefundene Dubletten")
+
+        container = QtWidgets.QWidget(self)
+        layout = QtWidgets.QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        table = QtWidgets.QTableWidget(self)
+        table.setAlternatingRowColors(True)
+        table.setRowCount(len(dataframe))
+        table.setColumnCount(len(dataframe.columns))
+        table.setHorizontalHeaderLabels(dataframe.columns.tolist())
+        for row_idx, (_, row) in enumerate(dataframe.iterrows()):
+            for col_idx, value in enumerate(row):
+                item = QtWidgets.QTableWidgetItem(str(value))
+                table.setItem(row_idx, col_idx, item)
+        table.resizeColumnsToContents()
+        layout.addWidget(table)
+        self.setCentralWidget(container)
+
+        total_width = table.verticalHeader().width() + table.frameWidth() * 2
+        total_width += table.verticalScrollBar().sizeHint().width()
+        for i in range(table.columnCount()):
+            total_width += table.columnWidth(i)
+        screen = QtWidgets.QApplication.primaryScreen()
+        screen_width = screen.availableGeometry().width() if screen else total_width
+        self.resize(min(total_width, screen_width), 400)
 
     def closeEvent(self, event):
         self.closed.emit()
