@@ -102,8 +102,8 @@ class MainWindow(QtWidgets.QMainWindow):
         layout = QtWidgets.QVBoxLayout(container)
         layout.addWidget(self._button)
         layout.addWidget(self._clean_button)
-        layout.addWidget(self._export_cleaned_button)
         layout.addStretch()
+        layout.addWidget(self._export_cleaned_button)
         self.setCentralWidget(container)
 
         self._worker = LoadWorker(path)
