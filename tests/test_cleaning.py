@@ -386,7 +386,9 @@ def test_integration_clean_dataframe_real_api():
     # We can't guarantee specific results since the API might change or be unavailable
     # But we can check that the function completed without errors
     assert len(cleaned) == len(df)
-    assert list(cleaned.columns) == list(df.columns)
+    # A new 'plz' column should be added even if no postal codes were found
+    assert list(cleaned.columns) == list(df.columns) + ["plz"]
+    assert cleaned["plz"].isna().all()
     
     # Check if any license plates were resolved
     original_location = df["location"].tolist()

@@ -2,6 +2,13 @@ import pandas as pd
 import pytest
 from profiling import profile_dataframe, top_error, get_all_error_types
 
+try:  # pragma: no cover - import guard
+    from PyQt5 import QtWidgets
+except Exception:  # noqa: BLE001 - broad to handle missing shared libs
+    pytest.skip(
+        "PyQt5 is required for profiling GUI tests", allow_module_level=True
+    )
+
 
 def test_profile_dataframe_basic():
     df = pd.DataFrame({
