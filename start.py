@@ -58,6 +58,7 @@ class LoadWorker(QtCore.QObject):
 class CleanWorker(QtCore.QObject):
     finished = QtCore.pyqtSignal(object)
     progress = QtCore.pyqtSignal(int)
+    status = QtCore.pyqtSignal(str)
 
     def __init__(self, dataframe) -> None:
         super().__init__()
@@ -68,7 +69,14 @@ class CleanWorker(QtCore.QObject):
         def callback(value: float) -> None:
             self.progress.emit(int(value))
 
-        cleaned = clean_dataframe(self._dataframe, progress_callback=callback)
+        def status_callback(message: str) -> None:
+            self.status.emit(message)
+
+        cleaned = clean_dataframe(
+            self._dataframe,
+            progress_callback=callback,
+            status_callback=status_callback,
+        )
         self.finished.emit(cleaned)
 
 
@@ -158,6 +166,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._clean_worker.moveToThread(self._clean_thread)
         self._clean_thread.started.connect(self._clean_worker.run)
         self._clean_worker.progress.connect(self._progress.setValue)
+        self._clean_worker.status.connect(self._status.showMessage)
         self._clean_worker.finished.connect(self._on_cleaned)
         self._clean_worker.finished.connect(self._clean_thread.quit)
         self._clean_worker.finished.connect(self._clean_worker.deleteLater)
