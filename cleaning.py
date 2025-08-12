@@ -72,7 +72,7 @@ def fetch_german_license_plates_from_api() -> Dict[str, str]:
                 endpoint, 
                 params={'query': sparql_query}, 
                 headers=headers,
-                timeout=45  # Increased timeout
+                timeout=45
             )
             
             # Handle rate limiting specifically
