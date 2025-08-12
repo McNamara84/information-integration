@@ -106,6 +106,44 @@ Zunächst wird ein umfangreiches Data Profiling durchgeführt, das strukturelle 
 
 Im Hauptfenster der Anwendung steht dafür ein Button \glqq Data Profiling\grqq{} zur Verfügung. Nach dem Einlesen der CSV-Datei öffnet ein Klick darauf ein übersichtliches Dashboard, das für jede Spalte Zeilenzahl, fehlende sowie eindeutige Werte, relative Häufigkeiten und häufige Fehlerindikatoren darstellt. Die Breite des Fensters orientiert sich automatisch an den Spaltenbreiten und nutzt maximal die verfügbare Bildschirmbreite, sodass horizontales Scrollen in der Regel entfällt. Auf diese Weise lassen sich Datenqualitätsprobleme frühzeitig erkennen und gezielt beheben.
 
+Zur Benennung der Fehlertypen wurde die Klassifikation von Naumann und Leser genutzt, die in den folgenden beiden Abschnitten beschrieben werden.
+
+\section{Fehler auf Schemaebene}
+
+\textbf{Unzulässige Werte} entstehen, wenn Datenwerte außerhalb der für ein Attribut definierten Domäne liegen. Ein typisches Beispiel wäre ein Geburtsdatum wie \texttt{32.1.1997}, bei dem der Tag außerhalb des gültigen Bereichs von 1--31 liegt. Solche Fehler lassen sich durch Wertebereich-Validierungen und Format-Prüfungen systematisch identifizieren.
+
+\textbf{Verletzte Attributabhängigkeiten} treten auf, wenn vordefinierte Beziehungen zwischen Attributwerten nicht eingehalten werden. Dies zeigt sich beispielsweise, wenn das Alter einer Person mit 17 Jahren angegeben ist, das Geburtsdatum jedoch auf den 2.1.1970 datiert ist. Programmatisch erfordern solche Fehler Cross-Field-Validierungen zwischen abhängigen Datenfeldern.
+
+\textbf{Eindeutigkeitsverletzungen} entstehen in Attributen, die als eindeutig gekennzeichnet sind, aber dennoch mehrfach vorkommende Werte enthalten. Dies betrifft insbesondere Primärschlüssel oder andere Unique-Constraints und lässt sich durch Duplikat-Erkennung in entsprechenden Spalten aufdecken.
+
+\textbf{Verletzte referenzielle Integrität} liegt vor, wenn Fremdschlüssel-Werte in referenzierten Tabellen nicht existieren. Solche Inkonsistenzen entstehen häufig bei unvollständigen Datenmigrationen oder fehlerhaften Löschoperationen und erfordern Join-Operationen zur Validierung der Referenzen.
+
+\section{Fehler auf Datenebene}
+
+\textbf{Fehlende Werte} manifestieren sich als NULL-Werte in Situationen, wo eigentlich Informationen verfügbar sein sollten. Problematisch wird dies besonders bei manueller Dateneingabe, wo oft Dummy-Werte wie \texttt{AAA} oder \texttt{999-999} verwendet werden, um NULL-Constraints zu umgehen. Diese Dummy-Werte sind meist nicht eindeutig definiert und erschweren die Identifikation und Bereinigung erheblich.
+
+\textbf{Schreibfehler} entstehen sowohl bei manueller Dateneingabe als auch bei automatischer Schrifterkennung. Typische Beispiele sind Ortsnamen wie \texttt{Babbelsberg} statt \texttt{Babelsberg}. Solche Fehler lassen sich durch Domänenexperten erkennen und mit Hilfe von Rechtschreibprüfungen oder Ähnlichkeitsmaßen wie der Levenshtein-Distanz systematisch aufspüren.
+
+\textbf{Falsche Werte} entsprechen nicht den tatsächlichen Gegebenheiten der realen Welt, auch wenn sie syntaktisch korrekt erscheinen. Ein Beispiel wäre ein Filmtitel \texttt{Ben Hur} mit dem Produktionsjahr 1931, obwohl der Film tatsächlich 1959 produziert wurde. Diese Fehlerart ist besonders schwer zu erkennen, da sie externe Referenzdaten zur Validierung erfordert und oft erst durch Beobachtung der realen Welt überprüfbar wird.
+
+\textbf{Falsche Referenzen} treten auf, wenn Verweise zwischen Datensätzen semantisch inkorrekt sind, obwohl sie syntaktisch gültig erscheinen. Dies kann bei automatischen Verknüpfungen entstehen, wenn Algorithmen falsche Zuordnungen zwischen Entitäten herstellen.
+
+\textbf{Kryptische Werte} sind für Menschen schwer interpretierbare Codes oder Abkürzungen ohne entsprechende Dokumentation. Solche Werte entstehen oft in Legacy-Systemen oder bei unvollständiger Datenmigration, wo Codetabellen verloren gehen.
+
+\textbf{Eingebettete Werte} bezeichnen Situationen, wo mehrere logische Informationen in einem einzigen Datenfeld gespeichert sind. Ein typisches Beispiel wäre ein Adressfeld, das Straße, Hausnummer und Postleitzahl in einem String kombiniert, was die separate Verarbeitung dieser Komponenten erschwert.
+
+\textbf{Falsche Zuordnungen} entstehen, wenn Datenwerte in falschen Attributspalten gespeichert werden. Dies kann bei Import-Prozessen auftreten, wenn Spalten-Mappings fehlerhaft definiert sind oder Datenformate nicht korrekt interpretiert werden.
+
+\textbf{Widersprüchliche Werte} liegen vor, wenn innerhalb desselben Datensatzes logisch unvereinbare Informationen existieren. Ein Beispiel wäre eine Person mit dem Geschlecht \texttt{männlich} und dem Titel \texttt{Frau}, was semantisch inkonsistent ist.
+
+\textbf{Transpositionen} bezeichnen die Vertauschung von Werten zwischen verschiedenen Attributen eines Datensatzes. Typisch wäre die Vertauschung von Vor- und Nachname oder die falsche Zuordnung von Koordinaten zu Längen- und Breitengrad.
+
+\textbf{Duplikate} sind mehrfache Repräsentationen desselben realen Objekts innerhalb einer Datenquelle. Diese können durch wiederholte Eingabe, fehlerhafte Import-Prozesse oder unvollständige Bereinigungsverfahren entstehen und beeinträchtigen die Datenqualität erheblich.
+
+\textbf{Datenkonflikte} entstehen, wenn verschiedene Versionen derselben Information in einem Datensatz koexistieren, ohne dass klar ist, welche Version korrekt oder aktuell ist. Dies tritt häufig bei zeitlichen Datenaktualisierungen auf, wenn alte Werte nicht ordnungsgemäß überschrieben werden.
+
+
+
 \newpage
 \addcontentsline{toc}{chapter}{Eigenständigkeitserklärung}
 \chapter*{Eigenständigkeitserklärung}
