@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 import pandas as pd
 from PyQt5 import QtCore, QtWidgets
 
-from profiling import profile_dataframe
+from profiling import profile_dataframe, get_all_error_types
 
 from load_bibliojobs import load_bibliojobs
 
@@ -106,7 +107,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._profile_window.close()
             self._profile_window = None
         stats = profile_dataframe(self._dataframe)
-        window = ProfileWindow(stats, self)
+        window = ProfileWindow(stats, self._dataframe, self)
         window.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         window.closed.connect(self._on_profile_window_destroyed)
         window.show()
@@ -119,10 +120,11 @@ class MainWindow(QtWidgets.QMainWindow):
 class ProfileWindow(QtWidgets.QMainWindow):
     closed = QtCore.pyqtSignal()
 
-    def __init__(self, stats, parent=None) -> None:
+    def __init__(self, stats, dataframe, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Data Profiling")
         self._stats = stats
+        self._dataframe = dataframe
 
         container = QtWidgets.QWidget(self)
         layout = QtWidgets.QVBoxLayout(container)
@@ -161,22 +163,48 @@ class ProfileWindow(QtWidgets.QMainWindow):
         )
         if not path:
             return
+        
+        # Create the report according to requirements:
+        # 1. Spalte: untersuchtes Attribut
+        # 2. Spalte: Fehlertyp gemäss der Fehlerklassifikation von Nauman/Leser  
+        # 3. Spalte: relative Fehlerquote
         rows = []
-        for _, row in self._stats.iterrows():
-            if row["Fehlende Werte %"] >= row["Fehler %"]:
-                error_type = "Fehlende Werte"
-                rate = row["Fehlende Werte %"]
+        
+        # For each column in the dataframe, get ALL error types
+        for column in self._dataframe.columns:
+            series = self._dataframe[column]
+            all_errors = get_all_error_types(series, column)
+            
+            if all_errors:
+                # Add one row for each error type found
+                for error_type, error_rate in all_errors:
+                    rows.append({
+                        "Attribut": column,
+                        "Fehlertyp": error_type,
+                        "Relative Fehlerquote (%)": round(error_rate, 2),
+                    })
             else:
-                error_type = "Schreibfehler"
-                rate = row["Fehler %"]
-            rows.append(
-                {
-                    "Attribut": row["Spalte"],
-                    "Fehlertyp": error_type,
-                    "Fehlerquote": rate,
-                }
+                # If no errors found, add a row indicating this
+                rows.append({
+                    "Attribut": column,
+                    "Fehlertyp": "Keine signifikanten Fehler",
+                    "Relative Fehlerquote (%)": 0.0,
+                })
+        
+        # Sort by attribute name, then by error rate (descending)
+        rows.sort(key=lambda x: (x["Attribut"], -x["Relative Fehlerquote (%)"]))
+        
+        report_df = pd.DataFrame(rows)
+        report_df.to_excel(path, index=False)
+        
+        # Show success message only when a display is available
+        if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Export erfolgreich",
+                f"Bericht wurde erfolgreich exportiert nach:\n{path}\n\n"
+                f"Anzahl Zeilen im Bericht: {len(report_df)}"
             )
-        pd.DataFrame(rows).to_excel(path, index=False)
 
     def closeEvent(self, event):
         self.closed.emit()
