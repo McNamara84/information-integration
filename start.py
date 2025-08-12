@@ -237,8 +237,18 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
         super().__init__(parent)
         self.setWindowTitle("Dubletten")
 
-        dup_df = dataframe[dataframe.duplicated(keep=False)].copy()
-        dup_df.sort_values(list(dataframe.columns), inplace=True)
+        from deduplication import find_content_duplicates
+
+        dup_df = find_content_duplicates(dataframe)
+        # If duplicates were found the helper column ``__dup_group`` will be
+        # present. It is used to colour code duplicate groups.
+        group_col = "__dup_group"
+        if group_col in dup_df.columns:
+            display_df = dup_df.drop(columns=[group_col])
+            groups = dup_df[group_col].tolist()
+        else:
+            display_df = dup_df
+            groups = []
 
         container = QtWidgets.QWidget(self)
         layout = QtWidgets.QVBoxLayout(container)
@@ -246,15 +256,19 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
 
         table = QtWidgets.QTableWidget(self)
         table.setAlternatingRowColors(True)
-        table.setRowCount(len(dup_df))
-        table.setColumnCount(len(dup_df.columns))
-        table.setHorizontalHeaderLabels(dup_df.columns.tolist())
+        table.setRowCount(len(display_df))
+        table.setColumnCount(len(display_df.columns))
+        table.setHorizontalHeaderLabels(display_df.columns.tolist())
 
-        seen = set()
-        for row_idx, (_, row) in enumerate(dup_df.iterrows()):
-            key = tuple(row)
-            color = QtGui.QColor("lightgreen") if key not in seen else QtGui.QColor("lightcoral")
-            seen.add(key)
+        seen_groups: set[int] = set()
+        for row_idx, (index, row) in enumerate(display_df.iterrows()):
+            group = groups[row_idx] if groups else index
+            color = (
+                QtGui.QColor("lightgreen")
+                if group not in seen_groups
+                else QtGui.QColor("lightcoral")
+            )
+            seen_groups.add(group)
             for col_idx, value in enumerate(row):
                 item = QtWidgets.QTableWidgetItem(str(value))
                 item.setBackground(color)
