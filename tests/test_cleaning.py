@@ -10,7 +10,6 @@ sys.path.append(str(pathlib.Path(__file__).resolve().parent.parent))
 
 from cleaning import clean_dataframe, fetch_german_license_plates, resolve_license_plates_in_series
 
-
 def test_clean_dataframe_html_unescape_and_strip():
     df = pd.DataFrame({
         "a": ["AT&amp;T", "<b>Bold</b>", None]
@@ -245,7 +244,9 @@ def test_integration_clean_dataframe_real_api():
     # We can't guarantee specific results since the API might change or be unavailable
     # But we can check that the function completed without errors
     assert len(cleaned) == len(df)
-    assert list(cleaned.columns) == list(df.columns)
+    # A new 'plz' column should be added even if no postal codes were found
+    assert list(cleaned.columns) == list(df.columns) + ["plz"]
+    assert cleaned["plz"].isna().all()
     
     # Check if any license plates were resolved
     original_location = df["location"].tolist()

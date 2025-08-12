@@ -5,9 +5,207 @@ import re
 import time
 from typing import Callable, Optional, Dict
 import requests
+import re
+from fuzzywuzzy import fuzz
+from collections import defaultdict
 
 import pandas as pd
 
+def extract_plz_from_company(series: pd.Series) -> tuple[pd.Series, pd.Series]:
+    """Extract postal codes from company names and return cleaned company names and PLZ.
+    
+    Parameters
+    ----------
+    series : pd.Series
+        Series containing company names with potential postal codes
+        
+    Returns
+    -------
+    tuple[pd.Series, pd.Series]
+        Tuple of (cleaned_company_names, extracted_plz)
+    """
+    
+    def extract_plz_and_clean(value):
+        if pd.isna(value):
+            return value, None
+        
+        value_str = str(value).strip()
+        extracted_plz = None
+        
+        # Extract German postal codes (5 digits) with optional city
+        # Patterns: ", 12345 Stadt" or ", 12345" at end of string
+        plz_pattern = r',\s*(\d{5})(?:\s+[A-ZÄÖÜ][a-zäöüß\s-]+)?$'
+        match = re.search(plz_pattern, value_str, flags=re.IGNORECASE)
+        
+        if match:
+            extracted_plz = match.group(1)
+            # Remove the entire PLZ+city part from company name
+            value_str = re.sub(plz_pattern, '', value_str, flags=re.IGNORECASE)
+        else:
+            # Try to find PLZ without comma (less common but happens)
+            # Pattern: " 12345 Stadt" or " 12345" at end, but be careful not to match job IDs etc.
+            plz_pattern_no_comma = r'\s+(\d{5})\s+[A-ZÄÖÜ][a-zäöüß\s-]+$'
+            match = re.search(plz_pattern_no_comma, value_str, flags=re.IGNORECASE)
+            if match:
+                extracted_plz = match.group(1)
+                value_str = re.sub(plz_pattern_no_comma, '', value_str, flags=re.IGNORECASE)
+        
+        return value_str.strip(), extracted_plz
+    
+    # Apply extraction to all values
+    results = series.apply(extract_plz_and_clean)
+    
+    # Separate company names and PLZ
+    company_names = pd.Series([result[0] for result in results], index=series.index)
+    plz_codes = pd.Series([result[1] for result in results], index=series.index)
+    
+    return company_names, plz_codes
+
+
+def clean_company_field(series: pd.Series) -> pd.Series:
+    """Clean and standardize company names by removing cities, 
+    normalizing formatting, and consolidating similar entries.
+    
+    Note: PLZ extraction should be done separately before this function.
+    
+    Parameters
+    ----------
+    series : pd.Series
+        Series containing company names to clean
+        
+    Returns
+    -------
+    pd.Series
+        Cleaned series with standardized company names
+    """
+    
+    def clean_single_company(value):
+        if pd.isna(value):
+            return value
+        
+        value_str = str(value).strip()
+        
+        # 1. Remove standalone cities at end (Hamburg, Berlin, etc.)
+        # Only remove if they appear after a comma
+        city_only_pattern = r',\s+(?:Hamburg|Berlin|München|Köln|Frankfurt|Dresden|Leipzig|Hannover|Düsseldorf|Stuttgart|Dortmund|Essen|Bremen|Duisburg|Nürnberg|Bochum|Wuppertal|Bielefeld|Bonn|Münster|Karlsruhe|Mannheim|Augsburg|Wiesbaden|Gelsenkirchen|Mönchengladbach|Braunschweig|Chemnitz|Kiel|Aachen|Halle|Magdeburg|Freiburg|Krefeld|Lübeck|Mainz|Erfurt|Oberhausen|Rostock|Kassel|Hagen|Potsdam|Saarbrücken|Hamm|Mülheim|Ludwigshafen|Leverkusen|Oldenburg|Osnabrück|Solingen|Heidelberg|Herne|Neuss|Darmstadt|Paderborn|Regensburg|Ingolstadt|Würzburg|Fürth|Wolfsburg|Offenbach|Ulm|Heilbronn|Pforzheim|Göttingen|Bottrop|Trier|Recklinghausen|Reutlingen|Bremerhaven|Koblenz|Bergisch|Gladbach|Jena|Remscheid|Erlangen|Moers|Siegen|Hildesheim|Salzgitter|Leimen|Marburg|Kleve|Wildau|Minden|Oberhaching|Böhl-Iggelheim|Groß-Umstadt|Mainburg|Stralsund|Zella-Mehlis)$'
+        value_str = re.sub(city_only_pattern, '', value_str, flags=re.IGNORECASE)
+        
+        # 2. Clean formatting and punctuation
+        value_str = re.sub(r'\s*\.\s*$', '', value_str)  # Remove trailing dots
+        value_str = re.sub(r',\s*,+', ',', value_str)     # Remove multiple commas
+        value_str = re.sub(r',\s*$', '', value_str)       # Remove trailing commas
+        value_str = re.sub(r'\s+', ' ', value_str)        # Normalize whitespace
+        value_str = re.sub(r'-\s+', '- ', value_str)      # Normalize hyphens
+        
+        # 3. Standardize common abbreviations and legal forms
+        abbreviations = {
+            r'\bgGmbH\b': 'gGmbH',
+            r'\bGmbH\b': 'GmbH', 
+            r'\bAG\b': 'AG',
+            r'\be\.V\.\b': 'e.V.',
+            r'\beV\b': 'e.V.',
+            r'\bLLP\b': 'LLP',
+            r'\bBibliothek\b': 'Bibliothek',
+            r'\bUniversität\b': 'Universität',
+            r'\bHochschule\b': 'Hochschule',
+            r'\bInstitut\b': 'Institut',
+            r'\bZentrum\b': 'Zentrum',
+            r'\bStadt\b': 'Stadt'
+        }
+        
+        for pattern, replacement in abbreviations.items():
+            value_str = re.sub(pattern, replacement, value_str, flags=re.IGNORECASE)
+        
+        # 4. Remove redundant descriptive text that often appears at the end
+        redundant_patterns = [
+            r',\s*Softwarehersteller für Bibliotheken',
+            r',\s*Bibliothek$',
+            r',\s*Stadtbibliothek$',
+            r',\s*Universitätsbibliothek$',
+            r',\s*Referat Benutzung$',
+            r',\s*Dienstort\s+\w+$',
+            r',\s*Standort\s+\w+$',
+            r',\s*Ärztliche Zentralbibliothek$',
+            r',\s*Hochschulbibliothek$'
+        ]
+        
+        for pattern in redundant_patterns:
+            value_str = re.sub(pattern, '', value_str, flags=re.IGNORECASE)
+        
+        return value_str.strip()
+    
+    # First pass: clean individual entries
+    cleaned_series = series.apply(clean_single_company)
+    
+    # Second pass: consolidate similar entries using fuzzy matching
+    cleaned_series = consolidate_similar_companies(cleaned_series)
+    
+    return cleaned_series
+
+
+def consolidate_similar_companies(series: pd.Series, threshold: int = 85) -> pd.Series:
+    """Consolidate similar company names using fuzzy string matching.
+    
+    Parameters
+    ----------
+    series : pd.Series
+        Series with cleaned company names
+    threshold : int
+        Similarity threshold (0-100) for considering names as duplicates
+        
+    Returns
+    -------
+    pd.Series
+        Series with consolidated company names
+    """
+    
+    # Get unique values and their counts
+    value_counts = series.value_counts()
+    unique_values = value_counts.index.tolist()
+    
+    # Group similar values
+    groups = []
+    used = set()
+    
+    for i, value1 in enumerate(unique_values):
+        if value1 in used or pd.isna(value1):
+            continue
+            
+        group = [value1]
+        used.add(value1)
+        
+        for j, value2 in enumerate(unique_values[i+1:], i+1):
+            if value2 in used or pd.isna(value2):
+                continue
+                
+            # Use fuzzy matching to compare names
+            similarity = fuzz.ratio(str(value1).lower(), str(value2).lower())
+            
+            if similarity >= threshold:
+                group.append(value2)
+                used.add(value2)
+        
+        if len(group) > 1:
+            groups.append(group)
+    
+    # Create mapping from similar names to the most frequent one
+    name_mapping = {}
+    for group in groups:
+        # Choose the most frequent name as canonical
+        group_counts = [(name, value_counts[name]) for name in group]
+        group_counts.sort(key=lambda x: (-x[1], len(x[0])))  # Most frequent, then shortest
+        canonical = group_counts[0][0]
+        
+        for name in group:
+            name_mapping[name] = canonical
+    
+    # Apply mapping
+    def apply_mapping(value):
+        if pd.isna(value):
+            return value
+        return name_mapping.get(value, value)
+    
+    return series.apply(apply_mapping)
 
 def get_cache_file_path() -> str:
     """Get the path for the license plate cache file."""
@@ -183,7 +381,8 @@ def resolve_license_plates_in_series(series: pd.Series, license_plate_map: Dict[
 
 
 def clean_dataframe(df: pd.DataFrame, progress_callback: Optional[Callable[[float], None]] = None) -> pd.DataFrame:
-    """Return a cleaned copy of *df* with HTML entities decoded, tags removed, and license plates resolved.
+    """Return a cleaned copy of *df* with HTML entities decoded, tags removed, 
+    license plates resolved, company names standardized, and PLZ extracted to separate column.
 
     Parameters
     ----------
@@ -203,8 +402,25 @@ def clean_dataframe(df: pd.DataFrame, progress_callback: Optional[Callable[[floa
         if progress_callback:
             progress_callback(5.0)  # 5% for fetching license plates
         license_plate_map = fetch_german_license_plates()
-        # Small delay to be respectful
         time.sleep(0.1)
+    
+    # Extract PLZ from company field before other processing
+    if 'company' in cleaned.columns:
+        if progress_callback:
+            progress_callback(10.0)  # Additional 5% for PLZ extraction
+        
+        print("Extrahiere Postleitzahlen aus Firmennamen...")
+        company_cleaned, plz_extracted = extract_plz_from_company(cleaned['company'])
+        cleaned['company'] = company_cleaned
+        
+        # Add PLZ column (or update if it already exists)
+        if 'plz' not in cleaned.columns:
+            cleaned['plz'] = plz_extracted
+        else:
+            # If PLZ column exists, only fill empty values
+            cleaned['plz'] = cleaned['plz'].fillna(plz_extracted)
+        
+        print(f"PLZ extrahiert: {plz_extracted.notna().sum()} Einträge gefunden")
     
     for idx, col in enumerate(object_cols, start=1):
         # HTML cleaning (original functionality)
@@ -218,9 +434,17 @@ def clean_dataframe(df: pd.DataFrame, progress_callback: Optional[Callable[[floa
         if col == 'location' and license_plate_map:
             cleaned[col] = resolve_license_plates_in_series(cleaned[col], license_plate_map)
         
+        # Company name cleaning and standardization (after PLZ extraction)
+        if col == 'company':
+            if progress_callback:
+                progress = 15.0 + (idx / total * 75.0)  # Show progress for company cleaning
+                progress_callback(progress)
+            print("Bereinige und standardisiere Firmennamen...")
+            cleaned[col] = clean_company_field(cleaned[col])
+        
         if progress_callback and total:
-            # Reserve 5% for license plate fetching, use remaining 95% for processing
-            progress = 5.0 + (idx / total * 95.0)
+            # Reserve 10% for license plates + PLZ, use remaining 90% for processing
+            progress = 10.0 + (idx / total * 90.0)
             progress_callback(progress)
     
     if progress_callback:
