@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 
 import pandas as pd
@@ -196,13 +197,14 @@ class ProfileWindow(QtWidgets.QMainWindow):
         report_df = pd.DataFrame(rows)
         report_df.to_excel(path, index=False)
         
-        # Show success message
-        QtWidgets.QMessageBox.information(
-            self, 
-            "Export erfolgreich", 
-            f"Bericht wurde erfolgreich exportiert nach:\n{path}\n\n"
-            f"Anzahl Zeilen im Bericht: {len(report_df)}"
-        )
+        # Show success message only when a display is available
+        if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Export erfolgreich",
+                f"Bericht wurde erfolgreich exportiert nach:\n{path}\n\n"
+                f"Anzahl Zeilen im Bericht: {len(report_df)}"
+            )
 
     def closeEvent(self, event):
         self.closed.emit()
