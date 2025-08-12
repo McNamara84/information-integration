@@ -211,33 +211,55 @@ def get_cache_file_path() -> str:
     return os.path.join(os.path.dirname(__file__), 'license_plate_cache.json')
 
 
-def load_license_plate_cache() -> Dict[str, str]:
+def load_license_plate_cache(status_callback: Optional[Callable[[str], None]] = None) -> Dict[str, str]:
     """Load license plate mapping from local cache file."""
+    def _status(msg: str) -> None:
+        if status_callback:
+            status_callback(msg)
+        else:
+            print(msg)
+
     cache_file = get_cache_file_path()
     try:
         if os.path.exists(cache_file):
             with open(cache_file, 'r', encoding='utf-8') as f:
                 return json.load(f)
     except (json.JSONDecodeError, IOError) as e:
-        print(f"Warnung: Kennzeichen-Cache konnte nicht geladen werden: {e}")
+        _status(f"Warnung: Kennzeichen-Cache konnte nicht geladen werden: {e}")
     return {}
 
 
-def save_license_plate_cache(license_plate_map: Dict[str, str]) -> None:
+def save_license_plate_cache(
+    license_plate_map: Dict[str, str],
+    status_callback: Optional[Callable[[str], None]] = None,
+) -> None:
     """Save license plate mapping to local cache file."""
+    def _status(msg: str) -> None:
+        if status_callback:
+            status_callback(msg)
+        else:
+            print(msg)
+
     cache_file = get_cache_file_path()
     try:
         with open(cache_file, 'w', encoding='utf-8') as f:
             json.dump(license_plate_map, f, ensure_ascii=False, indent=2)
     except IOError as e:
-        print(f"Warnung: Kennzeichen-Cache konnte nicht gespeichert werden: {e}")
+        _status(f"Warnung: Kennzeichen-Cache konnte nicht gespeichert werden: {e}")
 
 
-def fetch_german_license_plates_from_api() -> Dict[str, str]:
+def fetch_german_license_plates_from_api(
+    status_callback: Optional[Callable[[str], None]] = None,
+) -> Dict[str, str]:
     """Fetch German license plate codes from Wikidata API with retry mechanism.
-    
+
     Returns a dictionary mapping license plate codes to place names.
     """
+    def _status(msg: str) -> None:
+        if status_callback:
+            status_callback(msg)
+        else:
+            print(msg)
     sparql_query = """
     SELECT ?item ?itemLabel ?licencePlate WHERE {
       ?item wdt:P395 ?licencePlate .
@@ -262,7 +284,9 @@ def fetch_german_license_plates_from_api() -> Dict[str, str]:
             # Add delay before each attempt (except the first one)
             if attempt > 0:
                 delay = base_delay * (2 ** (attempt - 1))  # Exponential backoff
-                print(f"Wikidata-API wird in {delay} Sekunden erneut aufgerufen... (Versuch {attempt + 1}/{max_retries})")
+                _status(
+                    f"Wikidata-API wird in {delay} Sekunden erneut aufgerufen... (Versuch {attempt + 1}/{max_retries})"
+                )
                 time.sleep(delay)
             
             response = requests.get(
@@ -277,7 +301,7 @@ def fetch_german_license_plates_from_api() -> Dict[str, str]:
                 retry_after = response.headers.get('Retry-After')
                 if retry_after:
                     wait_time = min(int(retry_after), 60)  # Max 1 minute wait
-                    print(f"Von Wikidata ausgebremst. Warte {wait_time} Sekunden...")
+                    _status(f"Von Wikidata ausgebremst. Warte {wait_time} Sekunden...")
                     time.sleep(wait_time)
                     continue
                 else:
@@ -298,19 +322,21 @@ def fetch_german_license_plates_from_api() -> Dict[str, str]:
                     if re.match(r'^[A-Z]{1,3}$', plate_code):
                         license_plate_map[plate_code] = place_name
             
-            print(f"Erfolgreich {len(license_plate_map)} Kennzeichen-Zuordnungen von Wikidata geladen")
+            _status(
+                f"Erfolgreich {len(license_plate_map)} Kennzeichen-Zuordnungen von Wikidata geladen"
+            )
             return license_plate_map
             
         except requests.exceptions.Timeout:
-            print(f"Zeitüberschreitung bei Versuch {attempt + 1}/{max_retries}")
+            _status(f"Zeitüberschreitung bei Versuch {attempt + 1}/{max_retries}")
             if attempt == max_retries - 1:
-                print("Alle API-Versuche führten zu einer Zeitüberschreitung")
+                _status("Alle API-Versuche führten zu einer Zeitüberschreitung")
         except requests.exceptions.RequestException as e:
-            print(f"API-Fehler bei Versuch {attempt + 1}/{max_retries}: {e}")
+            _status(f"API-Fehler bei Versuch {attempt + 1}/{max_retries}: {e}")
             if attempt == max_retries - 1:
-                print("Alle API-Versuche sind fehlgeschlagen")
+                _status("Alle API-Versuche sind fehlgeschlagen")
         except (KeyError, ValueError) as e:
-            print(f"Fehler beim Verarbeiten der Daten: {e}")
+            _status(f"Fehler beim Verarbeiten der Daten: {e}")
             break  # Don't retry on parsing errors
     
     return {}
@@ -329,16 +355,16 @@ def fetch_german_license_plates(status_callback: Optional[Callable[[str], None]]
             print(msg)
 
     # First, try to load from cache
-    license_plate_map = load_license_plate_cache()
+    license_plate_map = load_license_plate_cache(status_callback=_status)
 
     # If cache is empty or very small, try to fetch from API
     if len(license_plate_map) < 10:  # Germany has way more than 10 license plates
         _status("Kennzeichen-Cache leer oder unvollständig, lade Daten von Wikidata...")
-        api_result = fetch_german_license_plates_from_api()
+        api_result = fetch_german_license_plates_from_api(status_callback=_status)
 
         if api_result:
             # Save to cache for future use
-            save_license_plate_cache(api_result)
+            save_license_plate_cache(api_result, status_callback=_status)
             return api_result
         else:
             _status("Abruf der Kennzeichendaten fehlgeschlagen, verwende vorhandene Cache-Daten")
