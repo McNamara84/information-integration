@@ -17,7 +17,7 @@ def write_csv(tmp_path, df):
 
 def test_load_bibliojobs_parses_and_casts(tmp_path):
     df = pd.DataFrame({
-        "_JobID_": ["1"],
+        "*JobID*": ["1"],  # Test with asterisks like in real data
         "date": ["01-02-2020"],
         "geo_lat": ["52.5"],
         "geo_lon": ["13.4"],
@@ -114,3 +114,19 @@ def test_load_bibliojobs_missing_file(tmp_path):
     missing = tmp_path / "does-not-exist.csv"
     with pytest.raises(FileNotFoundError, match="CSV-Datei nicht gefunden"):
         load_bibliojobs(missing)
+
+
+def test_load_bibliojobs_handles_asterisks(tmp_path):
+    """Test that column names with asterisks are properly normalized."""
+    df = pd.DataFrame({
+        "*JOBID*": ["1"],
+        "*COMPANY*": ["Test Company"],
+        "_LOCATION_": ["Test Location"],
+        "date": ["01-02-2020"],
+    })
+    path = write_csv(tmp_path, df)
+
+    loaded = load_bibliojobs(path)
+
+    expected_columns = ["jobid", "company", "location", "date"]
+    assert list(loaded.columns) == expected_columns
