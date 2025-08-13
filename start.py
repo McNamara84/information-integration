@@ -95,6 +95,27 @@ class CleanWorker(QtCore.QObject):
         self.finished.emit(cleaned)
 
 
+class DedupeWorker(QtCore.QObject):
+    finished = QtCore.pyqtSignal(object)
+    progress = QtCore.pyqtSignal(int)
+
+    def __init__(self, dataframe) -> None:
+        super().__init__()
+        self._dataframe = dataframe
+
+    @QtCore.pyqtSlot()
+    def run(self):
+        def callback(value: float) -> None:
+            self.progress.emit(int(value))
+
+        _, duplicates = find_fuzzy_duplicates(
+            self._dataframe,
+            DEDUPLICATE_COLUMNS,
+            progress_callback=callback,
+        )
+        self.finished.emit(duplicates)
+
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, path: str) -> None:
         super().__init__()
@@ -154,6 +175,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._thread.finished.connect(self._thread.deleteLater)
         self._thread.start()
         self._profile_window: ProfileWindow | None = None
+        self._clean_worker: CleanWorker | None = None
+        self._clean_thread: QtCore.QThread | None = None
+        self._dedupe_worker: DedupeWorker | None = None
+        self._dedupe_thread: QtCore.QThread | None = None
 
     @QtCore.pyqtSlot(object)
     def _on_finished(self, df) -> None:
@@ -226,11 +251,27 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def _remove_duplicates(self) -> None:
+        if self._dedupe_thread and self._dedupe_thread.isRunning():
+            self._status.showMessage("Dublettenprüfung läuft bereits", 5000)
+            return
+
         self._status.showMessage("Suche nach Dubletten...")
-        _, duplicates = find_fuzzy_duplicates(
-            self._dataframe,
-            DEDUPLICATE_COLUMNS,
-        )
+        self._progress.setValue(0)
+        self._dedupe_button.setEnabled(False)
+
+        self._dedupe_worker = DedupeWorker(self._dataframe)
+        self._dedupe_thread = QtCore.QThread(self)
+        self._dedupe_worker.moveToThread(self._dedupe_thread)
+        self._dedupe_thread.started.connect(self._dedupe_worker.run)
+        self._dedupe_worker.progress.connect(self._progress.setValue)
+        self._dedupe_worker.finished.connect(self._on_duplicates_found)
+        self._dedupe_worker.finished.connect(self._dedupe_thread.quit)
+        self._dedupe_worker.finished.connect(self._dedupe_worker.deleteLater)
+        self._dedupe_thread.finished.connect(self._dedupe_thread.deleteLater)
+        self._dedupe_thread.start()
+
+    @QtCore.pyqtSlot(object)
+    def _on_duplicates_found(self, duplicates) -> None:
         if not duplicates.empty:
             window = DuplicatesWindow(duplicates, self)
             window.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -244,6 +285,9 @@ class MainWindow(QtWidgets.QMainWindow):
                     "Es wurden keine Dubletten gefunden.",
                 )
         self._status.showMessage("Dublettenprüfung abgeschlossen", 5000)
+        self._dedupe_button.setEnabled(True)
+        self._dedupe_worker = None
+        self._dedupe_thread = None
 
     @QtCore.pyqtSlot(list)
     def _apply_duplicate_removal(self, indices: list[int]) -> None:
