@@ -27,6 +27,8 @@ def test_find_fuzzy_duplicates():
     assert not duplicates.iloc[1]["keep"]
     assert len(cleaned) == 2
     assert "XYZ AG" in cleaned["company"].values
+    assert "probability" in duplicates.columns
+    assert duplicates["probability"].between(0, 100).all()
 
 
 def test_no_false_duplicates_with_different_company():
@@ -120,3 +122,32 @@ def test_no_false_duplicates_with_missing_vs_string_value():
 
     assert duplicates.empty
     assert len(cleaned) == 2
+
+
+def test_duplicates_sorted_by_probability_desc():
+    df = pd.DataFrame(
+        {
+            "company": ["ABC GmbH", "A.B.C. GmbH", "XYZ GmbH", "XZ GmbH"],
+            "location": ["Berlin", "Berlin", "Hamburg", "Hamburg"],
+            "jobtype": ["Librarian", "Librarian", "Archivist", "Archivist"],
+            "jobdescription": [
+                "Manage books",
+                "manage books",
+                "Archive documents",
+                "Archive docs",
+            ],
+            "fixedterm": [None, None, None, None],
+            "workinghours": ["Vollzeit", "Vollzeit", "Teilzeit", "Teilzeit"],
+            "salary": ["E 9", "E 9", "E 7", "E 7"],
+        }
+    )
+
+    _, duplicates = find_fuzzy_duplicates(
+        df,
+        DEDUPLICATE_COLUMNS,
+        threshold=80,
+    )
+
+    probs = duplicates["probability"].to_list()
+    assert all(probs[i] >= probs[i + 1] for i in range(len(probs) - 1))
+    assert len(set(probs)) > 1
