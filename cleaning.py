@@ -443,78 +443,99 @@ def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series
         workinghours: Optional[str] = None
         salary: Optional[str] = None
 
-        # Fixed-term detection - IMPROVED VERSION
-        # First check for "unbefristet"
+        # Fixed-term detection (your improved version)
         match = re.search(r"\bunbefristet\b", lower)
         if match:
             fixedterm = text[match.start():match.end()]
         else:
-            # Exclude "befristete Erhöhung" and similar false positives
             if not re.search(r"\bbefristete\s+erhöhung\b", lower):
-                # Look for "befristet" but stop at certain keywords
-                # Pattern explanation:
-                # - \bbefristet\b: match "befristet" as whole word
-                # - (?:\s+(?:bis|für|auf|als|zum|zur|voraussichtlich|zunächst))?: optional connecting words
-                # - (?:\s+(?:zum|den|die|der|das))?: optional articles
-                # - (?:\s+\d+\.?\s*\w+\.?\s*\d{4})?: optional date
-                # - (?:\s+\d+\s+(?:jahr|jahre|monat|monate))?: optional duration
-                # - (?:\s+[^,;]*?(?:vertretung|elternzeit|mutterschutz))?: optional reason
-                # Stop before: TV-L, E\d+, Vollzeit, Teilzeit, Stunden, Arbeitszeit, etc.
-                
                 pattern = (
                     r"\bbefristet\b"
                     r"(?:"
                         r"(?:\s+(?:bis|für|auf|als|zum|zur|in|mit|voraussichtlich|zunächst))?"
                         r"(?:\s+(?:zum|den|die|der|das|ein|eine|einen|zwei|drei))?"
                         r"(?:"
-                            # Date patterns
                             r"(?:\s+\d{1,2}\.?\s*(?:januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember|\d{1,2})\.?\s*\d{4})|"
-                            # Duration patterns  
                             r"(?:\s+\d+\s+(?:jahr|jahre|monat|monate|woche|wochen))|"
-                            # Special vertretung patterns
                             r"(?:\s+\w*vertretung)|"
                             r"(?:\s+elternzeit)|"
                             r"(?:\s+mutterschutz)|"
-                            # Option patterns
                             r"(?:\s+der\s+option\s+einer\s+unbefristeten\s+weiterbeschäftigung)"
                         r")*"
                     r")?"
                 )
                 
-                # Look for the pattern but exclude certain following words
                 full_pattern = pattern + r"(?![\s\w]*(?:tv-?l|e\s?\d+|vollzeit|teilzeit|stunden|arbeitszeit|wochenarbeitszeit|stellenausschreibung))"
                 
                 match = re.search(full_pattern, lower, re.IGNORECASE)
                 if match:
                     extracted = text[match.start():match.end()]
-                    
-                    # Clean up the extracted text
-                    # Remove trailing connecting words that shouldn't be there
                     extracted = re.sub(r'\s+(?:zu|in|mit|und|oder)\s*$', '', extracted, flags=re.IGNORECASE)
-                    # Remove trailing "bis" without date
                     extracted = re.sub(r'\s+bis\s*$', '', extracted, flags=re.IGNORECASE)
-                    # Remove any remaining TV-L or salary info
                     extracted = re.sub(r'\s+tv-?l.*$', '', extracted, flags=re.IGNORECASE)
                     extracted = re.sub(r'\s+e\s?\d+.*$', '', extracted, flags=re.IGNORECASE)
-                    # Remove working hour info
                     extracted = re.sub(r'\s+(?:vollzeit|teilzeit|in\s+vollzeit|in\s+teilzeit).*$', '', extracted, flags=re.IGNORECASE)
-                    # Remove percentage/hours info
                     extracted = re.sub(r'\s+\d+\s*(?:%|prozent|stunden|std\.).*$', '', extracted, flags=re.IGNORECASE)
                     
                     fixedterm = extracted.strip()
 
-        # Working hours detection (unchanged)
-        match = re.search(r"\b(vollzeit|teilzeit)\b", lower)
-        if match:
-            workinghours = text[match.start():match.end()]
+        # IMPROVED Working hours detection - standardize to "Vollzeit" or "Teilzeit"
+        # First check for explicit mentions
+        if re.search(r"\bvollzeit\b", lower):
+            workinghours = "Vollzeit"
+        elif re.search(r"\bteilzeit\b", lower):
+            workinghours = "Teilzeit"
         else:
-            match = re.search(r"\b\d{1,2}\s*(?:stunden|std)[^,;]*", lower)
-            if match:
-                workinghours = text[match.start():match.end()]
+            # Check for hours per week
+            hours_week_match = re.search(
+                r"(\d+(?:[,\.]\d+)?)\s*(?:stunden|std\.?)\s*(?:/|pro|je|die)?\s*(?:woche|wo\.)",
+                lower
+            )
+            if hours_week_match:
+                try:
+                    hours = float(hours_week_match.group(1).replace(',', '.'))
+                    workinghours = "Vollzeit" if hours >= 36 else "Teilzeit"
+                except ValueError:
+                    pass
             else:
-                match = re.search(r"\b\d{1,3}\s*%", lower)
-                if match:
-                    workinghours = text[match.start():match.end()]
+                # Check for hours per month
+                hours_month_match = re.search(
+                    r"(\d+(?:[,\.]\d+)?)\s*(?:stunden|std\.?)\s*(?:/|pro|je|im)?\s*monat",
+                    lower
+                )
+                if hours_month_match:
+                    try:
+                        hours_month = float(hours_month_match.group(1).replace(',', '.'))
+                        # Convert monthly hours to weekly (assuming 4.33 weeks per month)
+                        hours_week = hours_month / 4.33
+                        workinghours = "Vollzeit" if hours_week >= 36 else "Teilzeit"
+                    except ValueError:
+                        pass
+                else:
+                    # Check for percentage
+                    percent_match = re.search(r"(\d+(?:[,\.]\d+)?)\s*%", lower)
+                    if percent_match:
+                        try:
+                            percent = float(percent_match.group(1).replace(',', '.'))
+                            # Assuming 100% = 40 hours/week, so 90% (36h) and above = Vollzeit
+                            workinghours = "Vollzeit" if percent >= 90 else "Teilzeit"
+                        except ValueError:
+                            pass
+                    else:
+                        # Check for bare hour numbers with context
+                        # Pattern for hours without explicit time period but in work context
+                        bare_hours_match = re.search(
+                            r"(?:mit|von|umfang|arbeitszeit|wochenarbeitszeit)\s*(?:von)?\s*(\d+(?:[,\.]\d+)?)\s*(?:stunden|std\.?)",
+                            lower
+                        )
+                        if bare_hours_match:
+                            try:
+                                hours = float(bare_hours_match.group(1).replace(',', '.'))
+                                # Assume these are weekly hours if reasonable (< 60)
+                                if hours <= 60:
+                                    workinghours = "Vollzeit" if hours >= 36 else "Teilzeit"
+                            except ValueError:
+                                pass
 
         # Salary detection (unchanged)
         match = re.search(
