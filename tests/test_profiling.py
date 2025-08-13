@@ -97,12 +97,21 @@ def test_profile_window_width_respects_screen():
     win = ProfileWindow(stats, df)  # Pass dataframe as second argument
     win.show()
     app.processEvents()
-    table = win.centralWidget().findChild(QtWidgets.QTableWidget)
-    expected = table.verticalHeader().width() + table.frameWidth() * 2
-    expected += table.verticalScrollBar().sizeHint().width()
+    central = win.centralWidget()
+    assert central is not None
+    table = central.findChild(QtWidgets.QTableWidget)
+    assert table is not None
+    vertical_header = table.verticalHeader()
+    assert vertical_header is not None
+    expected = vertical_header.width() + table.frameWidth() * 2
+    scroll_bar = table.verticalScrollBar()
+    assert scroll_bar is not None
+    expected += scroll_bar.sizeHint().width()
     for i in range(table.columnCount()):
         expected += table.columnWidth(i)
-    screen_width = app.primaryScreen().availableGeometry().width()
+    screen = app.primaryScreen()
+    assert screen is not None
+    screen_width = screen.availableGeometry().width()
     assert win.width() == min(expected, screen_width)
     win.close()
 
@@ -112,9 +121,16 @@ def test_profile_window_width_respects_screen():
     win2 = ProfileWindow(stats_wide, df_wide)  # Pass dataframe as second argument
     win2.show()
     app.processEvents()
-    table2 = win2.centralWidget().findChild(QtWidgets.QTableWidget)
-    total_w = table2.verticalHeader().width() + table2.frameWidth() * 2
-    total_w += table2.verticalScrollBar().sizeHint().width()
+    central2 = win2.centralWidget()
+    assert central2 is not None
+    table2 = central2.findChild(QtWidgets.QTableWidget)
+    assert table2 is not None
+    vertical_header2 = table2.verticalHeader()
+    assert vertical_header2 is not None
+    total_w = vertical_header2.width() + table2.frameWidth() * 2
+    scroll_bar2 = table2.verticalScrollBar()
+    assert scroll_bar2 is not None
+    total_w += scroll_bar2.sizeHint().width()
     for i in range(table2.columnCount()):
         total_w += table2.columnWidth(i)
     assert total_w > screen_width
@@ -138,12 +154,14 @@ def test_profile_window_cleanup():
 
     win._show_profile()
     first = win._profile_window
+    assert first is not None
     assert first.isVisible()
 
     win._show_profile()
     app.processEvents()
     assert not first.isVisible()
 
+    assert win._profile_window is not None
     win._profile_window.close()
     app.processEvents()
     assert win._profile_window is None
