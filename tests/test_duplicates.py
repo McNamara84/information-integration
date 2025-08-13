@@ -9,6 +9,9 @@ def test_find_fuzzy_duplicates():
         "location": ["Berlin", "Berlin", "Hamburg"],
         "jobtype": ["Librarian", "Librarian", "Archivist"],
         "jobdescription": ["Manage books", "manage books", "Archive documents"],
+        "fixedterm": [None, None, None],
+        "workinghours": ["Vollzeit", "Vollzeit", "Teilzeit"],
+        "salary": ["E 9", "E 9", "E 7"],
     })
 
     cleaned, duplicates = find_fuzzy_duplicates(
@@ -32,6 +35,51 @@ def test_no_false_duplicates_with_different_company():
         "location": ["Berlin", "Berlin"],
         "jobtype": ["Librarian", "Librarian"],
         "jobdescription": ["Manage books", "Manage books"],
+        "fixedterm": [None, None],
+        "workinghours": ["Vollzeit", "Vollzeit"],
+        "salary": ["E 9", "E 9"],
+    })
+
+    cleaned, duplicates = find_fuzzy_duplicates(
+        df,
+        DEDUPLICATE_COLUMNS,
+        threshold=90,
+    )
+
+    assert duplicates.empty
+    assert len(cleaned) == 2
+
+
+def test_no_duplicates_when_workinghours_differs():
+    df = pd.DataFrame({
+        "company": ["ABC GmbH", "A.B.C. GmbH"],
+        "location": ["Berlin", "Berlin"],
+        "jobtype": ["Librarian", "Librarian"],
+        "jobdescription": ["Manage books", "manage books"],
+        "fixedterm": [None, None],
+        "workinghours": ["Vollzeit", "Teilzeit"],
+        "salary": ["E 9", "E 9"],
+    })
+
+    cleaned, duplicates = find_fuzzy_duplicates(
+        df,
+        DEDUPLICATE_COLUMNS,
+        threshold=90,
+    )
+
+    assert duplicates.empty
+    assert len(cleaned) == 2
+
+
+def test_no_false_duplicates_with_missing_vs_string_value():
+    df = pd.DataFrame({
+        "company": ["ABC GmbH", "ABC GmbH"],
+        "location": ["Berlin", "Berlin"],
+        "jobtype": ["Librarian", "Librarian"],
+        "jobdescription": ["Manage books", "Manage books"],
+        "fixedterm": [None, None],
+        "workinghours": ["Vollzeit", "Vollzeit"],
+        "salary": [None, "None provided"],
     })
 
     cleaned, duplicates = find_fuzzy_duplicates(
