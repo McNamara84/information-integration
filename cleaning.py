@@ -495,3 +495,48 @@ def clean_dataframe(
     if progress_callback:
         progress_callback(100.0)
     return cleaned
+
+
+def find_fuzzy_duplicates(df: pd.DataFrame, columns: list[str], threshold: int = 90) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Find and remove duplicate rows using fuzzy matching on selected columns.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Input dataframe to search for duplicates.
+    columns : list[str]
+        Columns whose values are concatenated for comparison.
+    threshold : int
+        Similarity threshold (0-100). Higher values mean stricter matching.
+
+    Returns
+    -------
+    tuple[pd.DataFrame, pd.DataFrame]
+        A tuple of (cleaned_dataframe, duplicates_dataframe) where the
+        duplicates dataframe contains rows removed from the original.
+    """
+    # Create comparison keys
+    keys = (
+        df[columns]
+        .fillna("")
+        .astype(str)
+        .agg(" ".join, axis=1)
+    )
+
+    drop_indices = set()
+
+    for i in range(len(keys)):
+        if i in drop_indices:
+            continue
+        for j in range(i + 1, len(keys)):
+            if j in drop_indices:
+                continue
+            score = fuzz.token_set_ratio(keys.iloc[i], keys.iloc[j])
+            if score >= threshold:
+                drop_indices.add(j)
+
+    duplicates = df.iloc[sorted(drop_indices)].copy()
+    cleaned = df.drop(index=drop_indices).reset_index(drop=True)
+    duplicates = duplicates.reset_index(drop=True)
+    return cleaned, duplicates
+

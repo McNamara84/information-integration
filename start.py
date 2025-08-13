@@ -10,7 +10,7 @@ from PyQt5 import QtCore, QtWidgets
 from profiling import profile_dataframe, get_all_error_types
 
 from load_bibliojobs import load_bibliojobs
-from cleaning import clean_dataframe
+from cleaning import clean_dataframe, find_fuzzy_duplicates
 
 
 ERROR_TYPES = [
@@ -100,6 +100,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._clean_button.setEnabled(False)
         self._clean_button.clicked.connect(self._clean_data)
 
+        self._dedupe_button = QtWidgets.QPushButton("Dubletten entfernen")
+        self._dedupe_button.setEnabled(False)
+        self._dedupe_button.clicked.connect(self._remove_duplicates)
+
         self._export_cleaned_button = QtWidgets.QPushButton(
             "Ergebnis als Exceltabelle speichern"
         )
@@ -110,6 +114,7 @@ class MainWindow(QtWidgets.QMainWindow):
         layout = QtWidgets.QVBoxLayout(container)
         layout.addWidget(self._button)
         layout.addWidget(self._clean_button)
+        layout.addWidget(self._dedupe_button)
         layout.addStretch()
         layout.addWidget(self._export_cleaned_button)
         self.setCentralWidget(container)
@@ -178,6 +183,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._dataframe = df
         self._status.showMessage("Bereinigung abgeschlossen", 5000)
         self._progress.setValue(100)
+        self._dedupe_button.setEnabled(True)
         self._export_cleaned_button.show()
 
     def _export_cleaned(self) -> None:
@@ -194,6 +200,26 @@ class MainWindow(QtWidgets.QMainWindow):
                 f"Daten wurden erfolgreich exportiert nach:\n{path}",
             )
 
+
+    def _remove_duplicates(self) -> None:
+        self._status.showMessage("Suche nach Dubletten...")
+        cleaned, duplicates = find_fuzzy_duplicates(
+            self._dataframe,
+            ["company", "location", "jobtype", "jobdescription"],
+        )
+        self._dataframe = cleaned
+        if not duplicates.empty:
+            window = DuplicatesWindow(duplicates, self)
+            window.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+            window.show()
+        else:
+            if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+                QtWidgets.QMessageBox.information(
+                    self,
+                    "Keine Dubletten",
+                    "Es wurden keine Dubletten gefunden.",
+                )
+        self._status.showMessage("Dublettenprüfung abgeschlossen", 5000)
 
 class ProfileWindow(QtWidgets.QMainWindow):
     closed = QtCore.pyqtSignal()
@@ -288,6 +314,33 @@ class ProfileWindow(QtWidgets.QMainWindow):
         self.closed.emit()
         super().closeEvent(event)
 
+
+class DuplicatesWindow(QtWidgets.QMainWindow):
+    def __init__(self, dataframe, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Gefundene Dubletten")
+        container = QtWidgets.QWidget(self)
+        layout = QtWidgets.QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        table = QtWidgets.QTableWidget(self)
+        table.setAlternatingRowColors(True)
+        table.setRowCount(len(dataframe))
+        table.setColumnCount(len(dataframe.columns))
+        table.setHorizontalHeaderLabels(dataframe.columns.tolist())
+        for row_idx, (_, row) in enumerate(dataframe.iterrows()):
+            for col_idx, value in enumerate(row):
+                item = QtWidgets.QTableWidgetItem(str(value))
+                table.setItem(row_idx, col_idx, item)
+        table.resizeColumnsToContents()
+        layout.addWidget(table)
+        self.setCentralWidget(container)
+        total_width = table.verticalHeader().width() + table.frameWidth() * 2
+        total_width += table.verticalScrollBar().sizeHint().width()
+        for i in range(table.columnCount()):
+            total_width += table.columnWidth(i)
+        screen = QtWidgets.QApplication.primaryScreen()
+        screen_width = screen.availableGeometry().width() if screen else total_width
+        self.resize(min(total_width, screen_width), 400)
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Startet die Informationsintegration-GUI")
