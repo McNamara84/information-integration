@@ -398,7 +398,10 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
                 checkbox.stateChanged.connect(self._update_button_state)
                 table.setCellWidget(row_idx, 0, checkbox)
                 self._checkboxes.append(checkbox)
-                orig_index = getattr(row, "orig_index", None)
+                try:
+                    orig_index = row.orig_index
+                except AttributeError as exc:
+                    raise RuntimeError("Missing 'orig_index' for duplicate row") from exc
                 if orig_index is None:
                     raise RuntimeError("Missing 'orig_index' for duplicate row")
                 self._checkbox_map[checkbox] = int(orig_index)
