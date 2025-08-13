@@ -1,5 +1,6 @@
 import pandas as pd
 import pytest
+from typing import cast
 from profiling import profile_dataframe, top_error, get_all_error_types
 
 try:  # pragma: no cover - import guard
@@ -93,7 +94,10 @@ def test_profile_window_width_respects_screen():
 
     df = pd.DataFrame({"a": [1], "b": [2], "c": [3]})
     stats = profile_dataframe(df)
-    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+    app = cast(
+        QtWidgets.QApplication,
+        QtWidgets.QApplication.instance() or QtWidgets.QApplication([]),
+    )
     win = ProfileWindow(stats, df)  # Pass dataframe as second argument
     win.show()
     app.processEvents()
