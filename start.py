@@ -271,7 +271,7 @@ class ProfileWindow(QtWidgets.QMainWindow):
         table.setRowCount(len(stats))
         table.setColumnCount(len(stats.columns))
         table.setHorizontalHeaderLabels(stats.columns.tolist())
-        for row_idx, (_, row) in enumerate(stats.iterrows()):
+        for row_idx, row in enumerate(stats.itertuples(index=False, name=None)):
             for col_idx, value in enumerate(row):
                 item = QtWidgets.QTableWidgetItem(str(value))
                 table.setItem(row_idx, col_idx, item)
@@ -373,30 +373,35 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
         self._select_all.stateChanged.connect(self._on_select_all)
         layout.addWidget(self._select_all)
 
-        display_df = dataframe.drop(
-            columns=["pair_id", "keep", "orig_index"], errors="ignore"
-        )
+        display_cols = [
+            col
+            for col in dataframe.columns
+            if col not in {"pair_id", "keep", "orig_index"}
+        ]
         table = QtWidgets.QTableWidget(self)
         table.setAlternatingRowColors(True)
-        table.setRowCount(len(display_df))
-        table.setColumnCount(len(display_df.columns) + 1)
-        table.setHorizontalHeaderLabels(["Auswählen"] + display_df.columns.tolist())
+        table.setRowCount(len(dataframe))
+        table.setColumnCount(len(display_cols) + 1)
+        table.setHorizontalHeaderLabels(["Auswählen"] + display_cols)
 
         self._checkboxes: list[QtWidgets.QCheckBox] = []
         self._checkbox_map: dict[QtWidgets.QCheckBox, int] = {}
 
-        for row_idx, row in dataframe.iterrows():
-            display_row = display_df.iloc[row_idx]
-            for col_idx, value in enumerate(display_row):
+        for row_idx, row in enumerate(dataframe.itertuples(index=False)):
+            for col_idx, col in enumerate(display_cols):
+                value = getattr(row, col)
                 item = QtWidgets.QTableWidgetItem(str(value))
                 table.setItem(row_idx, col_idx + 1, item)
-            if not row.get("keep", True):
+            if not getattr(row, "keep", True):
                 checkbox = QtWidgets.QCheckBox()
                 checkbox.setChecked(True)
                 checkbox.stateChanged.connect(self._update_button_state)
                 table.setCellWidget(row_idx, 0, checkbox)
                 self._checkboxes.append(checkbox)
-                self._checkbox_map[checkbox] = int(row.get("orig_index", row_idx))
+                orig_index = getattr(row, "orig_index", None)
+                if orig_index is None:
+                    raise RuntimeError("Missing 'orig_index' for duplicate row")
+                self._checkbox_map[checkbox] = int(orig_index)
             else:
                 item = QtWidgets.QTableWidgetItem("")
                 item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)
@@ -404,7 +409,7 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
 
             color = (
                 QtGui.QColor(200, 255, 200)
-                if row.get("keep", False)
+                if getattr(row, "keep", False)
                 else QtGui.QColor(255, 200, 200)
             )
             for col_idx in range(table.columnCount()):
