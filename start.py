@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+from typing import cast, TypeVar
 
 import pandas as pd
 from PyQt5 import QtCore, QtWidgets, QtGui
@@ -34,6 +35,16 @@ ERROR_TYPES = [
     "Duplikate",
     "Datenkonflikte",
 ]
+
+
+T = TypeVar("T")
+
+
+def _require(value: T | None, name: str) -> T:
+    """Return *value* if it is not ``None`` or raise ``RuntimeError``."""
+    if value is None:
+        raise RuntimeError(f"{name} is unexpectedly None")
+    return value
 
 
 class LoadWorker(QtCore.QObject):
@@ -92,7 +103,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.setWindowIcon(APP_ICON)
         self.resize(800, 600)
 
-        self._status = self.statusBar()
+        # Create an explicit status bar so that subsequent attribute access is
+        # always safe. ``QMainWindow.statusBar`` can technically return ``None``
+        # which confuses static type checkers.
+        self._status: QtWidgets.QStatusBar = QtWidgets.QStatusBar(self)
+        self.setStatusBar(self._status)
         self._progress = QtWidgets.QProgressBar()
         self._progress.setRange(0, 100)
         self._status.addPermanentWidget(self._progress)
@@ -159,7 +174,10 @@ class MainWindow(QtWidgets.QMainWindow):
             self._profile_window = None
         stats = profile_dataframe(self._dataframe)
         window = ProfileWindow(stats, self._dataframe, self)
-        window.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+        # Use the ``WidgetAttribute`` enum explicitly to satisfy static type
+        # checkers that may not know about the ``WA_DeleteOnClose`` attribute on
+        # ``Qt``.
+        window.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
         window.closed.connect(self._on_profile_window_destroyed)
         window.show()
         self._profile_window = window
@@ -216,7 +234,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._dataframe = cleaned
         if not duplicates.empty:
             window = DuplicatesWindow(duplicates, self)
-            window.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+            window.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
             window.show()
         else:
             if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
@@ -261,8 +279,13 @@ class ProfileWindow(QtWidgets.QMainWindow):
 
         self.setCentralWidget(container)
 
-        total_width = table.verticalHeader().width() + table.frameWidth() * 2
-        total_width += table.verticalScrollBar().sizeHint().width()
+        # ``verticalHeader`` and ``verticalScrollBar`` are guaranteed to return
+        # valid objects at runtime but are typed as optional, so we resolve them
+        # through a helper to enforce non-``None`` values.
+        header = _require(table.verticalHeader(), "verticalHeader")
+        total_width = header.width() + table.frameWidth() * 2
+        v_scroll = _require(table.verticalScrollBar(), "verticalScrollBar")
+        total_width += v_scroll.sizeHint().width()
         for i in range(table.columnCount()):
             total_width += table.columnWidth(i)
         screen = QtWidgets.QApplication.primaryScreen()
@@ -318,9 +341,12 @@ class ProfileWindow(QtWidgets.QMainWindow):
                 f"Anzahl Zeilen im Bericht: {len(report_df)}"
             )
 
-    def closeEvent(self, event):
-        self.closed.emit()
-        super().closeEvent(event)
+    def closeEvent(self, a0: QtGui.QCloseEvent | None) -> None:
+        # ``pyqtSignal`` instances are descriptors; when accessed through an
+        # instance they return ``pyqtBoundSignal`` which provides ``emit``.  Cast
+        # accordingly so that type checkers understand the attribute.
+        cast(QtCore.pyqtBoundSignal, self.closed).emit()
+        super().closeEvent(a0)
 
 
 class DuplicatesWindow(QtWidgets.QMainWindow):
@@ -345,12 +371,16 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
             if "keep" in dataframe.columns:
                 color = QtGui.QColor(200, 255, 200) if dataframe.iloc[row_idx]["keep"] else QtGui.QColor(255, 200, 200)
                 for col_idx in range(table.columnCount()):
-                    table.item(row_idx, col_idx).setBackground(color)
+                    cell_item = table.item(row_idx, col_idx)
+                    if cell_item is not None:
+                        cell_item.setBackground(color)
         table.resizeColumnsToContents()
         layout.addWidget(table)
         self.setCentralWidget(container)
-        total_width = table.verticalHeader().width() + table.frameWidth() * 2
-        total_width += table.verticalScrollBar().sizeHint().width()
+        header = _require(table.verticalHeader(), "verticalHeader")
+        total_width = header.width() + table.frameWidth() * 2
+        v_scroll = _require(table.verticalScrollBar(), "verticalScrollBar")
+        total_width += v_scroll.sizeHint().width()
         for i in range(table.columnCount()):
             total_width += table.columnWidth(i)
         screen = QtWidgets.QApplication.primaryScreen()
