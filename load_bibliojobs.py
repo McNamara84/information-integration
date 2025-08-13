@@ -8,7 +8,7 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 def load_bibliojobs(
-    path: Union[str, bytes] = "bibliojobs_raw.csv",
+    path: Union[str, os.PathLike[str]] = "bibliojobs_raw.csv",
     *,
     date_format: str = "%d-%m-%Y",
     progress_callback: Optional[Callable[[float], None]] = None,
@@ -32,7 +32,7 @@ def load_bibliojobs(
     pandas.DataFrame
         DataFrame with normalised column names and corrected dtypes.
     """
-    path_str = os.fspath(path)
+    path_str: str = os.fspath(path)
     if not os.path.exists(path_str):
         raise FileNotFoundError(f"CSV-Datei nicht gefunden: {path_str}")
 
