@@ -199,6 +199,40 @@ def test_clean_dataframe_without_location_column():
         assert cleaned["other"].iloc[2] == "AT&T"
 
 
+def test_extract_jobterms_info():
+    df = pd.DataFrame(
+        {
+            "jobterms": [
+                "befristet bis 31.12.2025, Vollzeit, Vergütung nach TV-L E13",
+                "unbefristet, Teilzeit (50%), E9 TV-L",
+                None,
+                "befristet, 20 Stunden/Woche, 3000 € monatlich",
+            ]
+        }
+    )
+
+    cleaned = clean_dataframe(df)
+
+    assert cleaned["fixedterm"].tolist() == [
+        "befristet bis 31.12.2025",
+        "unbefristet",
+        None,
+        "befristet",
+    ]
+    assert cleaned["workinghours"].tolist() == [
+        "Vollzeit",
+        "Teilzeit",
+        None,
+        "20 Stunden/Woche",
+    ]
+    assert cleaned["salary"].tolist() == [
+        "TV-L E13",
+        "E9",
+        None,
+        "3000 €",
+    ]
+
+
 def test_clean_dataframe_progress_callback():
     """Test that progress callback works with license plate resolution."""
     progress_calls = []
