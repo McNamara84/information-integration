@@ -415,9 +415,14 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
         layout = QtWidgets.QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
 
+        select_all_layout = QtWidgets.QHBoxLayout()
         self._select_all = QtWidgets.QCheckBox("Alle auswählen", self)
         self._select_all.stateChanged.connect(self._on_select_all)
-        layout.addWidget(self._select_all)
+        select_all_layout.addWidget(self._select_all)
+        self._selected_count_label = QtWidgets.QLabel("(0)", self)
+        select_all_layout.addWidget(self._selected_count_label)
+        select_all_layout.addStretch()
+        layout.addLayout(select_all_layout)
 
         display_cols = [
             col
@@ -432,6 +437,7 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
 
         self._checkboxes: list[QtWidgets.QCheckBox] = []
         self._checkbox_map: dict[QtWidgets.QCheckBox, int] = {}
+        self._selected_count = 0
 
         for row_idx, row in enumerate(self._dataframe.itertuples(index=False)):
             for col_idx, col in enumerate(display_cols):
@@ -441,7 +447,8 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
             if not getattr(row, "keep", True):
                 checkbox = QtWidgets.QCheckBox()
                 checkbox.setChecked(True)
-                checkbox.stateChanged.connect(self._update_button_state)
+                self._selected_count += 1
+                checkbox.stateChanged.connect(self._on_checkbox_state_changed)
                 table.setCellWidget(row_idx, 0, checkbox)
                 self._checkboxes.append(checkbox)
                 try:
@@ -497,16 +504,27 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
     def _on_select_all(self, state: int) -> None:
         checked = state == QtCore.Qt.CheckState.Checked.value
         for cb in self._checkboxes:
+            cb.blockSignals(True)
             cb.setChecked(checked)
+            cb.blockSignals(False)
+        self._selected_count = len(self._checkboxes) if checked else 0
+        self._update_button_state()
+
+    def _on_checkbox_state_changed(self, state: int) -> None:
+        if state == QtCore.Qt.CheckState.Checked.value:
+            self._selected_count += 1
+        else:
+            self._selected_count -= 1
         self._update_button_state()
 
     def _update_button_state(self) -> None:
-        any_checked = any(cb.isChecked() for cb in self._checkboxes)
+        any_checked = self._selected_count > 0
         self._remove_button.setVisible(any_checked)
-        all_checked = all(cb.isChecked() for cb in self._checkboxes)
+        all_checked = self._selected_count == len(self._checkboxes)
         self._select_all.blockSignals(True)
         self._select_all.setChecked(all_checked)
         self._select_all.blockSignals(False)
+        self._selected_count_label.setText(f"({self._selected_count})")
 
         
     def _emit_selection(self) -> None:
