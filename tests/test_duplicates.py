@@ -101,7 +101,7 @@ def test_multiple_duplicates_are_grouped():
     assert len(duplicates) == 3
     assert duplicates["pair_id"].nunique() == 1
     assert duplicates.iloc[0]["keep"]
-    assert (duplicates.iloc[1:]["keep"] == False).all()
+    assert (~duplicates.iloc[1:]["keep"]).all()
 
 
 def test_no_false_duplicates_with_missing_vs_string_value():
@@ -173,7 +173,7 @@ def test_probability_matches_each_drop_row():
         threshold=80,
     )
 
-    drop_rows = duplicates[duplicates["keep"] == False]
+    drop_rows = duplicates[~duplicates["keep"]]
     prob_map = dict(zip(drop_rows["company"], drop_rows["probability"]))
     expected_abcd = [
         fuzz.token_set_ratio("ABC GmbH", "ABCD GmbH"),
