@@ -24,3 +24,21 @@ def test_find_fuzzy_duplicates():
     assert not duplicates.iloc[1]["keep"]
     assert len(cleaned) == 2
     assert "XYZ AG" in cleaned["company"].values
+
+
+def test_no_false_duplicates_with_different_company():
+    df = pd.DataFrame({
+        "company": ["ABC GmbH", "XYZ GmbH"],
+        "location": ["Berlin", "Berlin"],
+        "jobtype": ["Librarian", "Librarian"],
+        "jobdescription": ["Manage books", "Manage books"],
+    })
+
+    cleaned, duplicates = find_fuzzy_duplicates(
+        df,
+        DEDUPLICATE_COLUMNS,
+        threshold=90,
+    )
+
+    assert duplicates.empty
+    assert len(cleaned) == 2
