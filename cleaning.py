@@ -559,7 +559,7 @@ def find_fuzzy_duplicates(
         if i in drop_indices:
             continue
         for j in neighbors:
-            if j <= i or j in drop_indices:
+            if j == i or j in drop_indices:
                 continue
             score = fuzz.token_set_ratio(keys.iloc[i], keys.iloc[j])
             if score >= threshold:
