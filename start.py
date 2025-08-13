@@ -415,9 +415,14 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
         layout = QtWidgets.QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
 
+        select_all_layout = QtWidgets.QHBoxLayout()
         self._select_all = QtWidgets.QCheckBox("Alle auswählen", self)
         self._select_all.stateChanged.connect(self._on_select_all)
-        layout.addWidget(self._select_all)
+        select_all_layout.addWidget(self._select_all)
+        self._selected_count_label = QtWidgets.QLabel("(0)", self)
+        select_all_layout.addWidget(self._selected_count_label)
+        select_all_layout.addStretch()
+        layout.addLayout(select_all_layout)
 
         display_cols = [
             col
@@ -500,6 +505,10 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
             cb.setChecked(checked)
         self._update_button_state()
 
+    def _update_selected_count(self) -> None:
+        count = sum(1 for cb in self._checkboxes if cb.isChecked())
+        self._selected_count_label.setText(f"({count})")
+
     def _update_button_state(self) -> None:
         any_checked = any(cb.isChecked() for cb in self._checkboxes)
         self._remove_button.setVisible(any_checked)
@@ -507,6 +516,7 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
         self._select_all.blockSignals(True)
         self._select_all.setChecked(all_checked)
         self._select_all.blockSignals(False)
+        self._update_selected_count()
 
         
     def _emit_selection(self) -> None:
