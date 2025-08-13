@@ -59,7 +59,7 @@ class LoadWorker(QtCore.QObject):
     @QtCore.pyqtSlot()
     def run(self):
         def callback(value: float) -> None:
-            self.progress.emit(round(value))
+            self.progress.emit(int(value))
 
         try:
             dataframe = load_bibliojobs(self._path, progress_callback=callback)
@@ -82,7 +82,7 @@ class CleanWorker(QtCore.QObject):
     @QtCore.pyqtSlot()
     def run(self):
         def callback(value: float) -> None:
-            self.progress.emit(round(value))
+            self.progress.emit(int(value))
 
         def status_callback(message: str) -> None:
             self.status.emit(message)
@@ -106,7 +106,7 @@ class DedupeWorker(QtCore.QObject):
     @QtCore.pyqtSlot()
     def run(self):
         def callback(value: float) -> None:
-            self.progress.emit(round(value))
+            self.progress.emit(int(value))
 
         _, duplicates = find_fuzzy_duplicates(
             self._dataframe,
@@ -285,7 +285,6 @@ class MainWindow(QtWidgets.QMainWindow):
                     "Es wurden keine Dubletten gefunden.",
                 )
         self._status.showMessage("Dublettenprüfung abgeschlossen", 5000)
-        self._progress.setValue(100)
         self._dedupe_button.setEnabled(True)
         self._dedupe_worker = None
         self._dedupe_thread = None
