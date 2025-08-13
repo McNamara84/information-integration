@@ -7,6 +7,9 @@ import sys
 import pandas as pd
 from PyQt5 import QtCore, QtWidgets, QtGui
 
+ICON_PATH = os.path.join(os.path.dirname(__file__), "fh_potsdam_logo.svg")
+APP_ICON = QtGui.QIcon(ICON_PATH)
+
 from profiling import profile_dataframe, get_all_error_types
 
 from load_bibliojobs import load_bibliojobs
@@ -84,6 +87,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, path: str) -> None:
         super().__init__()
         self.setWindowTitle("Informationsintegration")
+        self.setWindowIcon(APP_ICON)
         self.resize(800, 600)
 
         self._status = self.statusBar()
@@ -227,6 +231,7 @@ class ProfileWindow(QtWidgets.QMainWindow):
     def __init__(self, stats, dataframe, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Data Profiling")
+        self.setWindowIcon(APP_ICON)
         self._stats = stats
         self._dataframe = dataframe
 
@@ -319,6 +324,7 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
     def __init__(self, dataframe, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Gefundene Dubletten")
+        self.setWindowIcon(APP_ICON)
         container = QtWidgets.QWidget(self)
         layout = QtWidgets.QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -359,6 +365,7 @@ def main() -> None:
 
     app = QtWidgets.QApplication(sys.argv)
     app.setStyle("Fusion")
+    app.setWindowIcon(APP_ICON)
     window = MainWindow(args.csv_path)
     window.show()
     sys.exit(app.exec())
