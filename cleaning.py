@@ -443,16 +443,67 @@ def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series
         workinghours: Optional[str] = None
         salary: Optional[str] = None
 
-        # Fixed-term detection
+        # Fixed-term detection - IMPROVED VERSION
+        # First check for "unbefristet"
         match = re.search(r"\bunbefristet\b", lower)
         if match:
             fixedterm = text[match.start():match.end()]
         else:
-            match = re.search(r"\bbefristet[^,;]*", lower)
-            if match:
-                fixedterm = text[match.start():match.end()]
+            # Exclude "befristete Erhöhung" and similar false positives
+            if not re.search(r"\bbefristete\s+erhöhung\b", lower):
+                # Look for "befristet" but stop at certain keywords
+                # Pattern explanation:
+                # - \bbefristet\b: match "befristet" as whole word
+                # - (?:\s+(?:bis|für|auf|als|zum|zur|voraussichtlich|zunächst))?: optional connecting words
+                # - (?:\s+(?:zum|den|die|der|das))?: optional articles
+                # - (?:\s+\d+\.?\s*\w+\.?\s*\d{4})?: optional date
+                # - (?:\s+\d+\s+(?:jahr|jahre|monat|monate))?: optional duration
+                # - (?:\s+[^,;]*?(?:vertretung|elternzeit|mutterschutz))?: optional reason
+                # Stop before: TV-L, E\d+, Vollzeit, Teilzeit, Stunden, Arbeitszeit, etc.
+                
+                pattern = (
+                    r"\bbefristet\b"
+                    r"(?:"
+                        r"(?:\s+(?:bis|für|auf|als|zum|zur|in|mit|voraussichtlich|zunächst))?"
+                        r"(?:\s+(?:zum|den|die|der|das|ein|eine|einen|zwei|drei))?"
+                        r"(?:"
+                            # Date patterns
+                            r"(?:\s+\d{1,2}\.?\s*(?:januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember|\d{1,2})\.?\s*\d{4})|"
+                            # Duration patterns  
+                            r"(?:\s+\d+\s+(?:jahr|jahre|monat|monate|woche|wochen))|"
+                            # Special vertretung patterns
+                            r"(?:\s+\w*vertretung)|"
+                            r"(?:\s+elternzeit)|"
+                            r"(?:\s+mutterschutz)|"
+                            # Option patterns
+                            r"(?:\s+der\s+option\s+einer\s+unbefristeten\s+weiterbeschäftigung)"
+                        r")*"
+                    r")?"
+                )
+                
+                # Look for the pattern but exclude certain following words
+                full_pattern = pattern + r"(?![\s\w]*(?:tv-?l|e\s?\d+|vollzeit|teilzeit|stunden|arbeitszeit|wochenarbeitszeit|stellenausschreibung))"
+                
+                match = re.search(full_pattern, lower, re.IGNORECASE)
+                if match:
+                    extracted = text[match.start():match.end()]
+                    
+                    # Clean up the extracted text
+                    # Remove trailing connecting words that shouldn't be there
+                    extracted = re.sub(r'\s+(?:zu|in|mit|und|oder)\s*$', '', extracted, flags=re.IGNORECASE)
+                    # Remove trailing "bis" without date
+                    extracted = re.sub(r'\s+bis\s*$', '', extracted, flags=re.IGNORECASE)
+                    # Remove any remaining TV-L or salary info
+                    extracted = re.sub(r'\s+tv-?l.*$', '', extracted, flags=re.IGNORECASE)
+                    extracted = re.sub(r'\s+e\s?\d+.*$', '', extracted, flags=re.IGNORECASE)
+                    # Remove working hour info
+                    extracted = re.sub(r'\s+(?:vollzeit|teilzeit|in\s+vollzeit|in\s+teilzeit).*$', '', extracted, flags=re.IGNORECASE)
+                    # Remove percentage/hours info
+                    extracted = re.sub(r'\s+\d+\s*(?:%|prozent|stunden|std\.).*$', '', extracted, flags=re.IGNORECASE)
+                    
+                    fixedterm = extracted.strip()
 
-        # Working hours detection
+        # Working hours detection (unchanged)
         match = re.search(r"\b(vollzeit|teilzeit)\b", lower)
         if match:
             workinghours = text[match.start():match.end()]
@@ -465,7 +516,7 @@ def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series
                 if match:
                     workinghours = text[match.start():match.end()]
 
-        # Salary detection
+        # Salary detection (unchanged)
         match = re.search(
             r"(?:(?:tv-[löd]?|tv[öo]d)\s*[a-z]?\s?\d+[a-z]?|a\s?\d+[a-z]?|e\s?g?\s?\d+[a-z]?|\d+[\.,]?\d*\s*(?:€|eur))",
             lower,
