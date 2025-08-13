@@ -567,8 +567,6 @@ def find_fuzzy_duplicates(
 
             row_i = df.iloc[i]
             row_j = df.iloc[j]
-
-            overall_score = fuzz.token_set_ratio(keys.iloc[i], keys.iloc[j])
             company_sim = fuzz.token_set_ratio(
                 str(row_i.get("company", "")), str(row_j.get("company", ""))
             )
@@ -579,11 +577,7 @@ def find_fuzzy_duplicates(
 
             company_threshold = max(80, threshold - 10)
 
-            if not (
-                overall_score >= threshold
-                and company_sim >= company_threshold
-                and jobdesc_sim >= threshold
-            ):
+            if not (company_sim >= company_threshold and jobdesc_sim >= threshold):
                 continue
 
             nonnull_i = row_i.count()
