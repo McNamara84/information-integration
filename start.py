@@ -59,7 +59,7 @@ class LoadWorker(QtCore.QObject):
     @QtCore.pyqtSlot()
     def run(self):
         def callback(value: float) -> None:
-            self.progress.emit(int(value))
+            self.progress.emit(round(value))
 
         try:
             dataframe = load_bibliojobs(self._path, progress_callback=callback)
@@ -82,7 +82,7 @@ class CleanWorker(QtCore.QObject):
     @QtCore.pyqtSlot()
     def run(self):
         def callback(value: float) -> None:
-            self.progress.emit(int(value))
+            self.progress.emit(round(value))
 
         def status_callback(message: str) -> None:
             self.status.emit(message)
@@ -106,7 +106,7 @@ class DedupeWorker(QtCore.QObject):
     @QtCore.pyqtSlot()
     def run(self):
         def callback(value: float) -> None:
-            self.progress.emit(int(value))
+            self.progress.emit(round(value))
 
         _, duplicates = find_fuzzy_duplicates(
             self._dataframe,
@@ -175,6 +175,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._thread.finished.connect(self._thread.deleteLater)
         self._thread.start()
         self._profile_window: ProfileWindow | None = None
+        self._clean_worker: CleanWorker | None = None
+        self._clean_thread: QtCore.QThread | None = None
+        self._dedupe_worker: DedupeWorker | None = None
+        self._dedupe_thread: QtCore.QThread | None = None
 
     @QtCore.pyqtSlot(object)
     def _on_finished(self, df) -> None:
@@ -247,6 +251,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def _remove_duplicates(self) -> None:
+        if self._dedupe_thread and self._dedupe_thread.isRunning():
+            self._status.showMessage("Dublettenprüfung läuft bereits", 5000)
+            return
+
         self._status.showMessage("Suche nach Dubletten...")
         self._progress.setValue(0)
         self._dedupe_button.setEnabled(False)
@@ -279,6 +287,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._status.showMessage("Dublettenprüfung abgeschlossen", 5000)
         self._progress.setValue(100)
         self._dedupe_button.setEnabled(True)
+        self._dedupe_worker = None
+        self._dedupe_thread = None
 
     @QtCore.pyqtSlot(list)
     def _apply_duplicate_removal(self, indices: list[int]) -> None:
