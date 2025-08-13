@@ -735,6 +735,7 @@ def find_fuzzy_duplicates(
     df: pd.DataFrame,
     columns: list[str] | None = None,
     threshold: int = 90,
+    progress_callback: Callable[[float], None] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Find and remove duplicate rows using fuzzy matching on selected columns.
 
@@ -754,6 +755,8 @@ def find_fuzzy_duplicates(
         :data:`DEDUPLICATE_COLUMNS` is used.
     threshold : int
         Similarity threshold (0-100). Higher values mean stricter matching.
+    progress_callback : Callable[[float], None] | None
+        Optional callback receiving progress values from 0 to 100.
 
     Returns
     -------
@@ -787,6 +790,7 @@ def find_fuzzy_duplicates(
     drop_indices: set[int] = set()
     pairs: dict[int, list[int]] = {}
 
+    total = len(indices)
     for i, neighbors in enumerate(indices):
         if i in drop_indices:
             continue
@@ -837,6 +841,12 @@ def find_fuzzy_duplicates(
             pairs.setdefault(keep_idx, []).append(drop_idx)
             if drop_idx == i:
                 break
+
+        if progress_callback is not None:
+            progress_callback((i + 1) / total * 100)
+
+    if progress_callback is not None:
+        progress_callback(100)
 
     duplicate_rows = []
     for pair_id, (keep_idx, drop_list) in enumerate(pairs.items()):
