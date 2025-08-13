@@ -223,13 +223,13 @@ def test_extract_jobdescription_info():
         "Vollzeit",
         "Teilzeit",
         None,
-        "20 Stunden/Woche",
+        "Teilzeit",
     ]
     assert cleaned["salary"].tolist() == [
         "TV-L E13",
-        "E9",
+        "E 9",
         None,
-        "3000 €",
+        "3000 Euro monat",
     ]
 
 

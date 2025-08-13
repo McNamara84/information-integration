@@ -448,30 +448,180 @@ def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series
         if match:
             fixedterm = text[match.start():match.end()]
         else:
-            match = re.search(r"\bbefristet[^,;]*", lower)
-            if match:
-                fixedterm = text[match.start():match.end()]
+            if not re.search(r"\bbefristete\s+erhöhung\b", lower):
+                pattern = (
+                    r"\bbefristet\b"
+                    r"(?:"
+                        r"(?:\s+(?:bis|für|auf|als|zum|zur|in|mit|voraussichtlich|zunächst))?"
+                        r"(?:\s+(?:zum|den|die|der|das|ein|eine|einen|zwei|drei))?"
+                        r"(?:"
+                            r"(?:\s+\d{1,2}\.?\s*(?:januar|februar|märz|april|mai|juni|juli|august|september|oktober|november|dezember|\d{1,2})\.?\s*\d{4})|"
+                            r"(?:\s+\d+\s+(?:jahr|jahre|monat|monate|woche|wochen))|"
+                            r"(?:\s+\w*vertretung)|"
+                            r"(?:\s+elternzeit)|"
+                            r"(?:\s+mutterschutz)|"
+                            r"(?:\s+der\s+option\s+einer\s+unbefristeten\s+weiterbeschäftigung)"
+                        r")*"
+                    r")?"
+                )
+                
+                full_pattern = pattern + r"(?![\s\w]*(?:tv-?l|e\s?\d+|vollzeit|teilzeit|stunden|arbeitszeit|wochenarbeitszeit|stellenausschreibung))"
+                
+                match = re.search(full_pattern, lower, re.IGNORECASE)
+                if match:
+                    extracted = text[match.start():match.end()]
+                    extracted = re.sub(r'\s+(?:zu|in|mit|und|oder)\s*$', '', extracted, flags=re.IGNORECASE)
+                    extracted = re.sub(r'\s+bis\s*$', '', extracted, flags=re.IGNORECASE)
+                    extracted = re.sub(r'\s+tv-?l.*$', '', extracted, flags=re.IGNORECASE)
+                    extracted = re.sub(r'\s+e\s?\d+.*$', '', extracted, flags=re.IGNORECASE)
+                    extracted = re.sub(r'\s+(?:vollzeit|teilzeit|in\s+vollzeit|in\s+teilzeit).*$', '', extracted, flags=re.IGNORECASE)
+                    extracted = re.sub(r'\s+\d+\s*(?:%|prozent|stunden|std\.).*$', '', extracted, flags=re.IGNORECASE)
+                    
+                    fixedterm = extracted.strip()
 
         # Working hours detection
-        match = re.search(r"\b(vollzeit|teilzeit)\b", lower)
-        if match:
-            workinghours = text[match.start():match.end()]
+        if re.search(r"\bvollzeit\b", lower):
+            workinghours = "Vollzeit"
+        elif re.search(r"\bteilzeit\b", lower):
+            workinghours = "Teilzeit"
         else:
-            match = re.search(r"\b\d{1,2}\s*(?:stunden|std)[^,;]*", lower)
-            if match:
-                workinghours = text[match.start():match.end()]
+            hours_week_match = re.search(
+                r"(\d+(?:[,\.]\d+)?)\s*(?:stunden|std\.?)\s*(?:/|pro|je|die)?\s*(?:woche|wo\.)",
+                lower
+            )
+            if hours_week_match:
+                try:
+                    hours = float(hours_week_match.group(1).replace(',', '.'))
+                    workinghours = "Vollzeit" if hours >= 36 else "Teilzeit"
+                except ValueError:
+                    pass
             else:
-                match = re.search(r"\b\d{1,3}\s*%", lower)
-                if match:
-                    workinghours = text[match.start():match.end()]
+                hours_month_match = re.search(
+                    r"(\d+(?:[,\.]\d+)?)\s*(?:stunden|std\.?)\s*(?:/|pro|je|im)?\s*monat",
+                    lower
+                )
+                if hours_month_match:
+                    try:
+                        hours_month = float(hours_month_match.group(1).replace(',', '.'))
+                        hours_week = hours_month / 4.33
+                        workinghours = "Vollzeit" if hours_week >= 36 else "Teilzeit"
+                    except ValueError:
+                        pass
+                else:
+                    percent_match = re.search(r"(\d+(?:[,\.]\d+)?)\s*%", lower)
+                    if percent_match:
+                        try:
+                            percent = float(percent_match.group(1).replace(',', '.'))
+                            workinghours = "Vollzeit" if percent >= 90 else "Teilzeit"
+                        except ValueError:
+                            pass
+                    else:
+                        bare_hours_match = re.search(
+                            r"(?:mit|von|umfang|arbeitszeit|wochenarbeitszeit)\s*(?:von)?\s*(\d+(?:[,\.]\d+)?)\s*(?:stunden|std\.?)",
+                            lower
+                        )
+                        if bare_hours_match:
+                            try:
+                                hours = float(bare_hours_match.group(1).replace(',', '.'))
+                                if hours <= 60:
+                                    workinghours = "Vollzeit" if hours >= 36 else "Teilzeit"
+                            except ValueError:
+                                pass
 
         # Salary detection
-        match = re.search(
-            r"(?:(?:tv-[löd]?|tv[öo]d)\s*[a-z]?\s?\d+[a-z]?|a\s?\d+[a-z]?|e\s?g?\s?\d+[a-z]?|\d+[\.,]?\d*\s*(?:€|eur))",
-            lower,
+        # Priority 1: Look for TV-L, TVöD, TV-öD patterns with valid pay grades
+        tv_match = re.search(
+            r"(?:tv-?[löd]|tv[öo]d|tv-?h)\s*(?:e|eg)\s*(\d{1,2}[üÜ]?(?:\s*[ab])?)",
+            lower
         )
-        if match:
-            salary = text[match.start():match.end()]
+        if tv_match:
+            grade = tv_match.group(1)
+            grade_num = re.match(r"(\d+)", grade)
+            if grade_num and 1 <= int(grade_num.group(1)) <= 15:
+                full_match = text[tv_match.start():tv_match.end()]
+                salary = re.sub(r'\s+', ' ', full_match.upper())
+                salary = re.sub(r'TV-?[LÖD]+', 'TV-L', salary)
+                salary = re.sub(r'TV[ÖO]D', 'TVöD', salary)
+        
+        if not salary:
+            # Priority 2: Look for E/EG groups (without TV-L prefix)
+            e_match = re.search(
+                r"\b(?:e|eg)\s*(\d{1,2}[üÜ]?(?:\s*[ab])?)\b",
+                lower
+            )
+            if e_match:
+                grade = e_match.group(1)
+                grade_num = re.match(r"(\d+)", grade)
+                if grade_num and 1 <= int(grade_num.group(1)) <= 15:
+                    after_pos = e_match.end()
+                    if after_pos < len(lower):
+                        following_text = lower[after_pos:min(after_pos + 10, len(lower))]
+                        if not re.match(r'\d', following_text):
+                            full_match = text[e_match.start():e_match.end()]
+                            if 'eg' in lower[e_match.start():e_match.end()]:
+                                salary = f"EG {grade.upper()}"
+                            else:
+                                salary = f"E {grade.upper()}"
+        
+        if not salary:
+            # Priority 3: Look for A groups (Beamtenbesoldung)
+            a_match = re.search(
+                r"\ba\s*(\d{1,2})\b",
+                lower
+            )
+            if a_match:
+                grade = a_match.group(1)
+                if 1 <= int(grade) <= 16:
+                    salary = f"A {grade}"
+        
+        if not salary:
+            # Priority 4: IMPROVED Euro amount detection
+            
+            # Special case: 450 Euro-Job / 450-Euro-Job (Minijob)
+            minijob_match = re.search(r"450\s*(?:€|eur|euro)(?:-job)?", lower)
+            if minijob_match:
+                salary = "450 Euro-Job"
+            else:
+                euro_patterns = [
+                    # Pattern for amounts with space instead of decimal point (e.g., "8 50 Euro")
+                    r"(\d{1,2})\s+(\d{2})\s*(?:€|eur|euro)\s*(?:/|pro|je)?\s*(?:stunde|std\.?|monat|jahr|woche|tag)",
+                    # X.XXX €/Euro per time period
+                    r"(\d{1,5}(?:[.,]\d{1,3})?)\s*(?:€|eur|euro)\s*(?:/|pro|je)?\s*(?:stunde|std\.?|monat|jahr|woche|tag)",
+                    # X €/h, X €/Std
+                    r"(\d{1,5}(?:[.,]\d{1,3})?)\s*€\s*/\s*(?:h|std\.?)",
+                    # Stundenlohn/Monatslohn X €
+                    r"(?:stunden|monats|jahres|wochen)lohn\s*(?:von)?\s*(\d{1,5}(?:[.,]\d{1,3})?)\s*(?:€|eur|euro)",
+                    # Simple amount without time period (but be careful)
+                    r"(\d{3,5})\s*(?:€|eur|euro)(?![/-]job)",
+                ]
+                
+                for pattern in euro_patterns:
+                    euro_match = re.search(pattern, lower)
+                    if euro_match:
+                        # Extract the original text
+                        start = euro_match.start()
+                        end = euro_match.end()
+                        
+                        # For the special case with space instead of decimal
+                        if pattern == euro_patterns[0] and euro_match.group(1) and euro_match.group(2):
+                            # Reconstruct with decimal point
+                            amount = f"{euro_match.group(1)},{euro_match.group(2)}"
+                            remaining = lower[euro_match.start() + len(euro_match.group(1)) + 1 + len(euro_match.group(2)):euro_match.end()]
+                            salary = f"{amount}{text[euro_match.start() + len(euro_match.group(1)) + 1 + len(euro_match.group(2)):euro_match.end()]}"
+                        else:
+                            salary = text[start:end]
+                        
+                        # Clean up the extracted salary
+                        salary = re.sub(r'\s+', ' ', salary).strip()
+                        
+                        # Remove trailing punctuation (comma, semicolon, dash) but keep dash in "Euro-Job"
+                        salary = re.sub(r'[,;-]+$', '', salary)
+                        
+                        # Standardize Euro notation
+                        salary = salary.replace('eur ', 'Euro ')
+                        salary = salary.replace('€', 'Euro')
+                        
+                        break
 
         return fixedterm, workinghours, salary
 
