@@ -5,7 +5,7 @@ import os
 import sys
 
 import pandas as pd
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, QtGui
 
 from profiling import profile_dataframe, get_all_error_types
 
@@ -322,15 +322,20 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
         container = QtWidgets.QWidget(self)
         layout = QtWidgets.QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
+        display_df = dataframe.drop(columns=["pair_id", "keep"], errors="ignore")
         table = QtWidgets.QTableWidget(self)
         table.setAlternatingRowColors(True)
-        table.setRowCount(len(dataframe))
-        table.setColumnCount(len(dataframe.columns))
-        table.setHorizontalHeaderLabels(dataframe.columns.tolist())
-        for row_idx, (_, row) in enumerate(dataframe.iterrows()):
+        table.setRowCount(len(display_df))
+        table.setColumnCount(len(display_df.columns))
+        table.setHorizontalHeaderLabels(display_df.columns.tolist())
+        for row_idx, (_, row) in enumerate(display_df.iterrows()):
             for col_idx, value in enumerate(row):
                 item = QtWidgets.QTableWidgetItem(str(value))
                 table.setItem(row_idx, col_idx, item)
+            if "keep" in dataframe.columns:
+                color = QtGui.QColor(200, 255, 200) if dataframe.iloc[row_idx]["keep"] else QtGui.QColor(255, 200, 200)
+                for col_idx in range(table.columnCount()):
+                    table.item(row_idx, col_idx).setBackground(color)
         table.resizeColumnsToContents()
         layout.addWidget(table)
         self.setCentralWidget(container)

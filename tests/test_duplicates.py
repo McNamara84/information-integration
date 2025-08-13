@@ -17,7 +17,10 @@ def test_find_fuzzy_duplicates():
         threshold=90,
     )
 
-    assert len(duplicates) == 1
-    assert duplicates.iloc[0]["company"] == "A.B.C. GmbH"
+    assert len(duplicates) == 2
+    assert duplicates.iloc[0]["company"] == "ABC GmbH"
+    assert duplicates.iloc[0]["keep"]
+    assert duplicates.iloc[1]["company"] == "A.B.C. GmbH"
+    assert not duplicates.iloc[1]["keep"]
     assert len(cleaned) == 2
     assert "XYZ AG" in cleaned["company"].values

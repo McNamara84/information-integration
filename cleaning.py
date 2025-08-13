@@ -527,8 +527,10 @@ def find_fuzzy_duplicates(
     Returns
     -------
     tuple[pd.DataFrame, pd.DataFrame]
-        A tuple of (cleaned_dataframe, duplicates_dataframe) where the
-        duplicates dataframe contains rows removed from the original.
+        A tuple of (cleaned_dataframe, duplicates_dataframe). The
+        duplicates dataframe lists potential duplicate pairs with a
+        ``keep`` column indicating the recommended record to retain and a
+        ``pair_id`` column grouping corresponding rows.
     """
 
     columns = columns or DEDUPLICATE_COLUMNS
@@ -550,19 +552,45 @@ def find_fuzzy_duplicates(
     n_neighbors = min(10, len(df))
     distances, indices = nn.kneighbors(matrix, n_neighbors=n_neighbors)
 
-    drop_indices = set()
+    drop_indices: set[int] = set()
+    pairs: list[tuple[int, int]] = []
+
     for i, neighbors in enumerate(indices):
         if i in drop_indices:
             continue
         for j in neighbors:
-            if j == i or j in drop_indices:
+            if j <= i or j in drop_indices:
                 continue
             score = fuzz.token_set_ratio(keys.iloc[i], keys.iloc[j])
             if score >= threshold:
-                drop_indices.add(j)
+                row_i = df.iloc[i]
+                row_j = df.iloc[j]
+                nonnull_i = row_i.count()
+                nonnull_j = row_j.count()
+                if nonnull_i >= nonnull_j:
+                    keep_idx, drop_idx = i, j
+                else:
+                    keep_idx, drop_idx = j, i
+                drop_indices.add(drop_idx)
+                pairs.append((keep_idx, drop_idx))
+                if drop_idx == i:
+                    break
 
-    duplicates = df.iloc[sorted(drop_indices)].copy()
+    duplicate_rows = []
+    for pair_id, (keep_idx, drop_idx) in enumerate(pairs):
+        keep_row = df.iloc[keep_idx].copy()
+        keep_row["keep"] = True
+        keep_row["pair_id"] = pair_id
+        drop_row = df.iloc[drop_idx].copy()
+        drop_row["keep"] = False
+        drop_row["pair_id"] = pair_id
+        duplicate_rows.extend([keep_row, drop_row])
+
+    duplicates = pd.DataFrame(duplicate_rows)
+    if not duplicates.empty:
+        duplicates = duplicates.sort_values(["pair_id", "keep"], ascending=[True, False])
+        duplicates = duplicates.reset_index(drop=True)
+
     cleaned = df.drop(index=drop_indices).reset_index(drop=True)
-    duplicates = duplicates.reset_index(drop=True)
     return cleaned, duplicates
 
