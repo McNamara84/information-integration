@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from typing import cast
+from typing import cast, TypeVar
 
 import pandas as pd
 from PyQt5 import QtCore, QtWidgets, QtGui
@@ -35,6 +35,16 @@ ERROR_TYPES = [
     "Duplikate",
     "Datenkonflikte",
 ]
+
+
+T = TypeVar("T")
+
+
+def _require(value: T | None, name: str) -> T:
+    """Return *value* if it is not ``None`` or raise ``RuntimeError``."""
+    if value is None:
+        raise RuntimeError(f"{name} is unexpectedly None")
+    return value
 
 
 class LoadWorker(QtCore.QObject):
@@ -270,13 +280,11 @@ class ProfileWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(container)
 
         # ``verticalHeader`` and ``verticalScrollBar`` are guaranteed to return
-        # valid objects at runtime but are typed as optional, so we assign them to
-        # local variables before accessing their attributes.
-        header = table.verticalHeader()
-        assert header is not None
+        # valid objects at runtime but are typed as optional, so we resolve them
+        # through a helper to enforce non-``None`` values.
+        header = _require(table.verticalHeader(), "verticalHeader")
         total_width = header.width() + table.frameWidth() * 2
-        v_scroll = table.verticalScrollBar()
-        assert v_scroll is not None
+        v_scroll = _require(table.verticalScrollBar(), "verticalScrollBar")
         total_width += v_scroll.sizeHint().width()
         for i in range(table.columnCount()):
             total_width += table.columnWidth(i)
@@ -369,11 +377,9 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
         table.resizeColumnsToContents()
         layout.addWidget(table)
         self.setCentralWidget(container)
-        header = table.verticalHeader()
-        assert header is not None
+        header = _require(table.verticalHeader(), "verticalHeader")
         total_width = header.width() + table.frameWidth() * 2
-        v_scroll = table.verticalScrollBar()
-        assert v_scroll is not None
+        v_scroll = _require(table.verticalScrollBar(), "verticalScrollBar")
         total_width += v_scroll.sizeHint().width()
         for i in range(table.columnCount()):
             total_width += table.columnWidth(i)
