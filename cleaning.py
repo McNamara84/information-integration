@@ -4,11 +4,17 @@ import os
 import re
 import time
 from typing import Callable, Optional, Dict
-import requests
-from fuzzywuzzy import fuzz
+
 from collections import defaultdict
 
 import pandas as pd
+import requests
+from fuzzywuzzy import fuzz
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.neighbors import NearestNeighbors
+
+
+DEDUPLICATE_COLUMNS = ["company", "location", "jobtype", "jobdescription"]
 
 def extract_plz_from_company(series: pd.Series) -> tuple[pd.Series, pd.Series]:
     """Extract postal codes from company names and return cleaned company names and PLZ.
@@ -497,15 +503,24 @@ def clean_dataframe(
     return cleaned
 
 
-def find_fuzzy_duplicates(df: pd.DataFrame, columns: list[str], threshold: int = 90) -> tuple[pd.DataFrame, pd.DataFrame]:
+def find_fuzzy_duplicates(
+    df: pd.DataFrame,
+    columns: list[str] | None = None,
+    threshold: int = 90,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Find and remove duplicate rows using fuzzy matching on selected columns.
+
+    Uses a TF-IDF vectorization with nearest-neighbor search to reduce the
+    number of pairwise comparisons, avoiding the quadratic complexity of a
+    naive nested loop.
 
     Parameters
     ----------
     df : pd.DataFrame
         Input dataframe to search for duplicates.
-    columns : list[str]
-        Columns whose values are concatenated for comparison.
+    columns : list[str] | None
+        Columns whose values are concatenated for comparison. If ``None``,
+        :data:`DEDUPLICATE_COLUMNS` is used.
     threshold : int
         Similarity threshold (0-100). Higher values mean stricter matching.
 
@@ -515,21 +530,32 @@ def find_fuzzy_duplicates(df: pd.DataFrame, columns: list[str], threshold: int =
         A tuple of (cleaned_dataframe, duplicates_dataframe) where the
         duplicates dataframe contains rows removed from the original.
     """
+
+    columns = columns or DEDUPLICATE_COLUMNS
+
     # Create comparison keys
     keys = (
         df[columns]
         .fillna("")
         .astype(str)
         .agg(" ".join, axis=1)
+        .str.lower()
     )
 
-    drop_indices = set()
+    vectorizer = TfidfVectorizer().fit(keys)
+    matrix = vectorizer.transform(keys)
+    nn = NearestNeighbors(metric="cosine", algorithm="brute")
+    nn.fit(matrix)
 
-    for i in range(len(keys)):
+    n_neighbors = min(10, len(df))
+    distances, indices = nn.kneighbors(matrix, n_neighbors=n_neighbors)
+
+    drop_indices = set()
+    for i, neighbors in enumerate(indices):
         if i in drop_indices:
             continue
-        for j in range(i + 1, len(keys)):
-            if j in drop_indices:
+        for j in neighbors:
+            if j == i or j in drop_indices:
                 continue
             score = fuzz.token_set_ratio(keys.iloc[i], keys.iloc[j])
             if score >= threshold:

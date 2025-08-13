@@ -10,7 +10,7 @@ from PyQt5 import QtCore, QtWidgets
 from profiling import profile_dataframe, get_all_error_types
 
 from load_bibliojobs import load_bibliojobs
-from cleaning import clean_dataframe, find_fuzzy_duplicates
+from cleaning import clean_dataframe, find_fuzzy_duplicates, DEDUPLICATE_COLUMNS
 
 
 ERROR_TYPES = [
@@ -205,7 +205,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._status.showMessage("Suche nach Dubletten...")
         cleaned, duplicates = find_fuzzy_duplicates(
             self._dataframe,
-            ["company", "location", "jobtype", "jobdescription"],
+            DEDUPLICATE_COLUMNS,
         )
         self._dataframe = cleaned
         if not duplicates.empty:

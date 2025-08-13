@@ -1,10 +1,6 @@
-import pathlib
-import sys
 import pandas as pd
 
-sys.path.append(str(pathlib.Path(__file__).resolve().parent.parent))
-
-from cleaning import find_fuzzy_duplicates
+from cleaning import DEDUPLICATE_COLUMNS, find_fuzzy_duplicates
 
 
 def test_find_fuzzy_duplicates():
@@ -17,7 +13,7 @@ def test_find_fuzzy_duplicates():
 
     cleaned, duplicates = find_fuzzy_duplicates(
         df,
-        ["company", "location", "jobtype", "jobdescription"],
+        DEDUPLICATE_COLUMNS,
         threshold=90,
     )
 

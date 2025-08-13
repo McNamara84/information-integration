@@ -2,6 +2,7 @@ pandas
 numpy
 openpyxl
 fuzzywuzzy[speedup]
+scikit-learn
 sqlalchemy
 mysqlclient
 psycopg2-binary
