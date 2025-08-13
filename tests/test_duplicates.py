@@ -53,6 +53,27 @@ def test_no_false_duplicates_with_different_company():
     assert len(cleaned) == 2
 
 
+def test_no_false_duplicates_with_different_location():
+    df = pd.DataFrame({
+        "company": ["ABC GmbH", "ABC GmbH"],
+        "location": ["Berlin", "Hamburg"],
+        "jobtype": ["Librarian", "Librarian"],
+        "jobdescription": ["Manage books", "Manage books"],
+        "fixedterm": [None, None],
+        "workinghours": ["Vollzeit", "Vollzeit"],
+        "salary": ["E 9", "E 9"],
+    })
+
+    cleaned, duplicates = find_fuzzy_duplicates(
+        df,
+        DEDUPLICATE_COLUMNS,
+        threshold=90,
+    )
+
+    assert duplicates.empty
+    assert len(cleaned) == 2
+
+
 def test_no_duplicates_when_workinghours_differs():
     df = pd.DataFrame({
         "company": ["ABC GmbH", "A.B.C. GmbH"],

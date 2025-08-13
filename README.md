@@ -21,7 +21,7 @@ Ein Projekt im Rahmen der Hausarbeit im 6. Fachsemester des Studiengangs **Infor
   - Grafische Oberfläche (PyQt6) zur Anzeige von Profiling-Kennzahlen und zur Klassifikation von Datenfehlern nach Naumann/Leser.
   - Export von Bereinigungen und Fehlerberichten als Excel-Datei.
 - **Dublettenerkennung**
-  - Fuzzy-Matching über "company", "location", "jobtype" und "jobdescription".
+  - Fuzzy-Matching über "company", "jobtype" und "jobdescription"; der "location"-Wert muss exakt übereinstimmen.
   - Effiziente Kandidatensuche mittels TF-IDF-Vektorisierung und Nearest-Neighbor-Suche.
   - Gefundene Dubletten werden entfernt und in einem eigenen Fenster angezeigt.
 

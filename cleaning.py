@@ -821,6 +821,18 @@ def find_fuzzy_duplicates(
                     continue
                 val_i = row_i.get(col)
                 val_j = row_j.get(col)
+                if col == "location":
+                    if pd.isna(val_i) and pd.isna(val_j):
+                        sims.append(100)
+                        continue
+                    if pd.isna(val_i) or pd.isna(val_j):
+                        match = False
+                        break
+                    if str(val_i).strip().lower() != str(val_j).strip().lower():
+                        match = False
+                        break
+                    sims.append(100)
+                    continue
                 if pd.isna(val_i) and pd.isna(val_j):
                     col_sim = 100
                 elif pd.isna(val_i) or pd.isna(val_j):
