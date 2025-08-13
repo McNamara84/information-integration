@@ -479,7 +479,7 @@ def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series
                     
                     fixedterm = extracted.strip()
 
-        # Working hours detection (standardized version)
+        # Working hours detection
         if re.search(r"\bvollzeit\b", lower):
             workinghours = "Vollzeit"
         elif re.search(r"\bteilzeit\b", lower):
@@ -536,13 +536,10 @@ def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series
         )
         if tv_match:
             grade = tv_match.group(1)
-            # Validate that it's a reasonable pay grade (1-15, possibly with Ü or a/b)
             grade_num = re.match(r"(\d+)", grade)
             if grade_num and 1 <= int(grade_num.group(1)) <= 15:
-                # Extract and standardize the format
                 full_match = text[tv_match.start():tv_match.end()]
                 salary = re.sub(r'\s+', ' ', full_match.upper())
-                # Standardize TV-L, TVöD, etc.
                 salary = re.sub(r'TV-?[LÖD]+', 'TV-L', salary)
                 salary = re.sub(r'TV[ÖO]D', 'TVöD', salary)
         
@@ -556,15 +553,11 @@ def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series
                 grade = e_match.group(1)
                 grade_num = re.match(r"(\d+)", grade)
                 if grade_num and 1 <= int(grade_num.group(1)) <= 15:
-                    # Make sure it's not part of a longer number (e.g., "e 2016" or "e 19280")
-                    # Check what comes after
                     after_pos = e_match.end()
                     if after_pos < len(lower):
                         following_text = lower[after_pos:min(after_pos + 10, len(lower))]
-                        # If there are more digits following, it's likely not a pay grade
                         if not re.match(r'\d', following_text):
                             full_match = text[e_match.start():e_match.end()]
-                            # Standardize format to "E X" or "EG X"
                             if 'eg' in lower[e_match.start():e_match.end()]:
                                 salary = f"EG {grade.upper()}"
                             else:
@@ -582,27 +575,53 @@ def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series
                     salary = f"A {grade}"
         
         if not salary:
-            # Priority 4: Look for Euro amounts
-            # Pattern for various Euro formats
-            euro_patterns = [
-                # X.XXX €/Euro per time period
-                r"(\d{1,5}(?:[.,]\d{1,3})?)\s*(?:€|eur|euro)\s*(?:/|pro|je)?\s*(?:stunde|std\.?|monat|jahr|woche|tag)",
-                # X.XXX €/Euro standalone
-                r"(\d{1,5}(?:[.,]\d{1,3})?)\s*(?:€|eur|euro)(?:\s|$|[^\w])",
-                # Stundenlohn/Monatslohn X €
-                r"(?:stunden|monats|jahres|wochen)lohn\s*(?:von)?\s*(\d{1,5}(?:[.,]\d{1,3})?)\s*(?:€|eur|euro)",
-                # X €/h, X €/Std
-                r"(\d{1,5}(?:[.,]\d{1,3})?)\s*€\s*/\s*(?:h|std\.?)",
-            ]
+            # Priority 4: IMPROVED Euro amount detection
             
-            for pattern in euro_patterns:
-                euro_match = re.search(pattern, lower)
-                if euro_match:
-                    # Extract the original text maintaining case
-                    salary = text[euro_match.start():euro_match.end()]
-                    # Clean up and standardize
-                    salary = re.sub(r'\s+', ' ', salary).strip()
-                    break
+            # Special case: 450 Euro-Job / 450-Euro-Job (Minijob)
+            minijob_match = re.search(r"450\s*(?:€|eur|euro)(?:-job)?", lower)
+            if minijob_match:
+                salary = "450 Euro-Job"
+            else:
+                euro_patterns = [
+                    # Pattern for amounts with space instead of decimal point (e.g., "8 50 Euro")
+                    r"(\d{1,2})\s+(\d{2})\s*(?:€|eur|euro)\s*(?:/|pro|je)?\s*(?:stunde|std\.?|monat|jahr|woche|tag)",
+                    # X.XXX €/Euro per time period
+                    r"(\d{1,5}(?:[.,]\d{1,3})?)\s*(?:€|eur|euro)\s*(?:/|pro|je)?\s*(?:stunde|std\.?|monat|jahr|woche|tag)",
+                    # X €/h, X €/Std
+                    r"(\d{1,5}(?:[.,]\d{1,3})?)\s*€\s*/\s*(?:h|std\.?)",
+                    # Stundenlohn/Monatslohn X €
+                    r"(?:stunden|monats|jahres|wochen)lohn\s*(?:von)?\s*(\d{1,5}(?:[.,]\d{1,3})?)\s*(?:€|eur|euro)",
+                    # Simple amount without time period (but be careful)
+                    r"(\d{3,5})\s*(?:€|eur|euro)(?![/-]job)",
+                ]
+                
+                for pattern in euro_patterns:
+                    euro_match = re.search(pattern, lower)
+                    if euro_match:
+                        # Extract the original text
+                        start = euro_match.start()
+                        end = euro_match.end()
+                        
+                        # For the special case with space instead of decimal
+                        if pattern == euro_patterns[0] and euro_match.group(1) and euro_match.group(2):
+                            # Reconstruct with decimal point
+                            amount = f"{euro_match.group(1)},{euro_match.group(2)}"
+                            remaining = lower[euro_match.start() + len(euro_match.group(1)) + 1 + len(euro_match.group(2)):euro_match.end()]
+                            salary = f"{amount}{text[euro_match.start() + len(euro_match.group(1)) + 1 + len(euro_match.group(2)):euro_match.end()]}"
+                        else:
+                            salary = text[start:end]
+                        
+                        # Clean up the extracted salary
+                        salary = re.sub(r'\s+', ' ', salary).strip()
+                        
+                        # Remove trailing punctuation (comma, semicolon, dash) but keep dash in "Euro-Job"
+                        salary = re.sub(r'[,;-]+$', '', salary)
+                        
+                        # Standardize Euro notation
+                        salary = salary.replace('eur ', 'Euro ')
+                        salary = salary.replace('€', 'Euro')
+                        
+                        break
 
         return fixedterm, workinghours, salary
 
