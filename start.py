@@ -407,7 +407,9 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("Gefundene Dubletten")
         if APP_ICON is not None:
             self.setWindowIcon(APP_ICON)
-        self._dataframe = dataframe
+        self._dataframe = dataframe.sort_values(
+            "probability", ascending=False
+        ).reset_index(drop=True)
 
         container = QtWidgets.QWidget(self)
         layout = QtWidgets.QVBoxLayout(container)
@@ -419,19 +421,19 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
 
         display_cols = [
             col
-            for col in dataframe.columns
+            for col in self._dataframe.columns
             if col not in {"pair_id", "keep", "orig_index"}
         ]
         table = QtWidgets.QTableWidget(self)
         table.setAlternatingRowColors(True)
-        table.setRowCount(len(dataframe))
+        table.setRowCount(len(self._dataframe))
         table.setColumnCount(len(display_cols) + 1)
         table.setHorizontalHeaderLabels(["Auswählen"] + display_cols)
 
         self._checkboxes: list[QtWidgets.QCheckBox] = []
         self._checkbox_map: dict[QtWidgets.QCheckBox, int] = {}
 
-        for row_idx, row in enumerate(dataframe.itertuples(index=False)):
+        for row_idx, row in enumerate(self._dataframe.itertuples(index=False)):
             for col_idx, col in enumerate(display_cols):
                 value = getattr(row, col)
                 item = QtWidgets.QTableWidgetItem(str(value))
@@ -465,6 +467,11 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
                     cell_item.setBackground(color)
 
         table.resizeColumnsToContents()
+        screen = QtWidgets.QApplication.primaryScreen()
+        if screen:
+            max_width = screen.availableGeometry().width() // table.columnCount()
+            for i in range(table.columnCount()):
+                table.setColumnWidth(i, min(table.columnWidth(i), max_width))
         layout.addWidget(table)
         self._table = table
 

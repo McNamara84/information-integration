@@ -788,7 +788,8 @@ def find_fuzzy_duplicates(
     distances, indices = nn.kneighbors(matrix, n_neighbors=n_neighbors)
 
     drop_indices: set[int] = set()
-    pairs: dict[int, list[int]] = {}
+    # Map of "keep" index -> list of tuples (drop_index, similarity_score)
+    pairs: dict[int, list[tuple[int, int]]] = {}
 
     total = len(indices)
     for i, neighbors in enumerate(indices):
@@ -813,6 +814,7 @@ def find_fuzzy_duplicates(
             if not (company_sim >= company_threshold and jobdesc_sim >= threshold):
                 continue
 
+            sims = [company_sim, jobdesc_sim]
             match = True
             for col in columns:
                 if col in {"company", "jobdescription"}:
@@ -825,11 +827,14 @@ def find_fuzzy_duplicates(
                     col_sim = 0
                 else:
                     col_sim = fuzz.token_set_ratio(str(val_i), str(val_j))
+                sims.append(col_sim)
                 if col_sim < threshold:
                     match = False
                     break
             if not match:
                 continue
+
+            similarity = int(sum(sims) / len(sims))
 
             nonnull_i = row_i.count()
             nonnull_j = row_j.count()
@@ -838,7 +843,7 @@ def find_fuzzy_duplicates(
             else:
                 keep_idx, drop_idx = j, i
             drop_indices.add(drop_idx)
-            pairs.setdefault(keep_idx, []).append(drop_idx)
+            pairs.setdefault(keep_idx, []).append((drop_idx, similarity))
             if drop_idx == i:
                 break
 
@@ -849,22 +854,27 @@ def find_fuzzy_duplicates(
         progress_callback(100)
 
     duplicate_rows = []
-    for pair_id, (keep_idx, drop_list) in enumerate(pairs.items()):
+    for pair_id, (keep_idx, drop_pairs) in enumerate(pairs.items()):
         keep_row = df.iloc[keep_idx].copy()
         keep_row["keep"] = True
         keep_row["pair_id"] = pair_id
         keep_row["orig_index"] = keep_idx
+        keep_scores = [score for _, score in drop_pairs]
+        keep_row["probability"] = max(keep_scores) if keep_scores else 100
         duplicate_rows.append(keep_row)
-        for drop_idx in drop_list:
+        for drop_idx, score in drop_pairs:
             drop_row = df.iloc[drop_idx].copy()
             drop_row["keep"] = False
             drop_row["pair_id"] = pair_id
             drop_row["orig_index"] = drop_idx
+            drop_row["probability"] = score
             duplicate_rows.append(drop_row)
 
     duplicates = pd.DataFrame(duplicate_rows)
     if not duplicates.empty:
-        duplicates = duplicates.sort_values(["pair_id", "keep"], ascending=[True, False])
+        duplicates = duplicates.sort_values(
+            ["probability", "pair_id", "keep"], ascending=[False, True, False]
+        )
         duplicates = duplicates.reset_index(drop=True)
 
     cleaned = df.drop(index=drop_indices).reset_index(drop=True)
