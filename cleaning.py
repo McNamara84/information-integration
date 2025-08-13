@@ -14,7 +14,15 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.neighbors import NearestNeighbors
 
 
-DEDUPLICATE_COLUMNS = ["company", "location", "jobtype", "jobdescription"]
+DEDUPLICATE_COLUMNS = [
+    "company",
+    "location",
+    "jobtype",
+    "jobdescription",
+    "fixedterm",
+    "workinghours",
+    "salary",
+]
 
 def extract_plz_from_company(series: pd.Series) -> tuple[pd.Series, pd.Series]:
     """Extract postal codes from company names and return cleaned company names and PLZ.
@@ -798,6 +806,22 @@ def find_fuzzy_duplicates(
             company_threshold = max(80, threshold - 10)
 
             if not (company_sim >= company_threshold and jobdesc_sim >= threshold):
+                continue
+
+            match = True
+            for col in columns:
+                if col in {"company", "jobdescription"}:
+                    continue
+                val_i = row_i.get(col)
+                val_j = row_j.get(col)
+                if pd.isna(val_i) and pd.isna(val_j):
+                    col_sim = 100
+                else:
+                    col_sim = fuzz.token_set_ratio(str(val_i), str(val_j))
+                if col_sim < threshold:
+                    match = False
+                    break
+            if not match:
                 continue
 
             nonnull_i = row_i.count()
