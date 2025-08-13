@@ -418,6 +418,70 @@ def resolve_license_plates_in_series(series: pd.Series, license_plate_map: Dict[
     return series.apply(replace_license_plates)
 
 
+def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Extract fixed-term status, working hours, and salary from a jobdescription column.
+
+    Parameters
+    ----------
+    series:
+        Series containing textual job descriptions.
+
+    Returns
+    -------
+    tuple[pd.Series, pd.Series, pd.Series]
+        Tuple of (fixedterm, workinghours, salary) series.
+    """
+
+    def parse_terms(value: object) -> tuple[Optional[str], Optional[str], Optional[str]]:
+        if pd.isna(value):
+            return None, None, None
+
+        text = str(value)
+        lower = text.lower()
+
+        fixedterm: Optional[str] = None
+        workinghours: Optional[str] = None
+        salary: Optional[str] = None
+
+        # Fixed-term detection
+        match = re.search(r"\bunbefristet\b", lower)
+        if match:
+            fixedterm = text[match.start():match.end()]
+        else:
+            match = re.search(r"\bbefristet[^,;]*", lower)
+            if match:
+                fixedterm = text[match.start():match.end()]
+
+        # Working hours detection
+        match = re.search(r"\b(vollzeit|teilzeit)\b", lower)
+        if match:
+            workinghours = text[match.start():match.end()]
+        else:
+            match = re.search(r"\b\d{1,2}\s*(?:stunden|std)[^,;]*", lower)
+            if match:
+                workinghours = text[match.start():match.end()]
+            else:
+                match = re.search(r"\b\d{1,3}\s*%", lower)
+                if match:
+                    workinghours = text[match.start():match.end()]
+
+        # Salary detection
+        match = re.search(
+            r"(?:(?:tv-[löd]?|tv[öo]d)\s*[a-z]?\s?\d+[a-z]?|a\s?\d+[a-z]?|e\s?g?\s?\d+[a-z]?|\d+[\.,]?\d*\s*(?:€|eur))",
+            lower,
+        )
+        if match:
+            salary = text[match.start():match.end()]
+
+        return fixedterm, workinghours, salary
+
+    results = series.apply(parse_terms)
+    fixedterm_series = pd.Series([r[0] for r in results], index=series.index)
+    workinghours_series = pd.Series([r[1] for r in results], index=series.index)
+    salary_series = pd.Series([r[2] for r in results], index=series.index)
+    return fixedterm_series, workinghours_series, salary_series
+
+
 def clean_dataframe(
     df: pd.DataFrame,
     progress_callback: Optional[Callable[[float], None]] = None,
@@ -497,7 +561,13 @@ def clean_dataframe(
             # Reserve 10% for license plates + PLZ, use remaining 90% for processing
             progress = 10.0 + (idx / total * 90.0)
             progress_callback(progress)
-    
+
+    if 'jobdescription' in cleaned.columns:
+        fixedterm, workinghours, salary = extract_jobdescription_info(cleaned['jobdescription'])
+        cleaned['fixedterm'] = fixedterm
+        cleaned['workinghours'] = workinghours
+        cleaned['salary'] = salary
+
     if progress_callback:
         progress_callback(100.0)
     return cleaned
