@@ -443,7 +443,7 @@ def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series
         workinghours: Optional[str] = None
         salary: Optional[str] = None
 
-        # Fixed-term detection (your improved version)
+        # Fixed-term detection
         match = re.search(r"\bunbefristet\b", lower)
         if match:
             fixedterm = text[match.start():match.end()]
@@ -479,14 +479,12 @@ def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series
                     
                     fixedterm = extracted.strip()
 
-        # IMPROVED Working hours detection - standardize to "Vollzeit" or "Teilzeit"
-        # First check for explicit mentions
+        # Working hours detection (standardized version)
         if re.search(r"\bvollzeit\b", lower):
             workinghours = "Vollzeit"
         elif re.search(r"\bteilzeit\b", lower):
             workinghours = "Teilzeit"
         else:
-            # Check for hours per week
             hours_week_match = re.search(
                 r"(\d+(?:[,\.]\d+)?)\s*(?:stunden|std\.?)\s*(?:/|pro|je|die)?\s*(?:woche|wo\.)",
                 lower
@@ -498,7 +496,6 @@ def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series
                 except ValueError:
                     pass
             else:
-                # Check for hours per month
                 hours_month_match = re.search(
                     r"(\d+(?:[,\.]\d+)?)\s*(?:stunden|std\.?)\s*(?:/|pro|je|im)?\s*monat",
                     lower
@@ -506,24 +503,19 @@ def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series
                 if hours_month_match:
                     try:
                         hours_month = float(hours_month_match.group(1).replace(',', '.'))
-                        # Convert monthly hours to weekly (assuming 4.33 weeks per month)
                         hours_week = hours_month / 4.33
                         workinghours = "Vollzeit" if hours_week >= 36 else "Teilzeit"
                     except ValueError:
                         pass
                 else:
-                    # Check for percentage
                     percent_match = re.search(r"(\d+(?:[,\.]\d+)?)\s*%", lower)
                     if percent_match:
                         try:
                             percent = float(percent_match.group(1).replace(',', '.'))
-                            # Assuming 100% = 40 hours/week, so 90% (36h) and above = Vollzeit
                             workinghours = "Vollzeit" if percent >= 90 else "Teilzeit"
                         except ValueError:
                             pass
                     else:
-                        # Check for bare hour numbers with context
-                        # Pattern for hours without explicit time period but in work context
                         bare_hours_match = re.search(
                             r"(?:mit|von|umfang|arbeitszeit|wochenarbeitszeit)\s*(?:von)?\s*(\d+(?:[,\.]\d+)?)\s*(?:stunden|std\.?)",
                             lower
@@ -531,19 +523,86 @@ def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series
                         if bare_hours_match:
                             try:
                                 hours = float(bare_hours_match.group(1).replace(',', '.'))
-                                # Assume these are weekly hours if reasonable (< 60)
                                 if hours <= 60:
                                     workinghours = "Vollzeit" if hours >= 36 else "Teilzeit"
                             except ValueError:
                                 pass
 
-        # Salary detection (unchanged)
-        match = re.search(
-            r"(?:(?:tv-[löd]?|tv[öo]d)\s*[a-z]?\s?\d+[a-z]?|a\s?\d+[a-z]?|e\s?g?\s?\d+[a-z]?|\d+[\.,]?\d*\s*(?:€|eur))",
-            lower,
+        # Salary detection
+        # Priority 1: Look for TV-L, TVöD, TV-öD patterns with valid pay grades
+        tv_match = re.search(
+            r"(?:tv-?[löd]|tv[öo]d|tv-?h)\s*(?:e|eg)\s*(\d{1,2}[üÜ]?(?:\s*[ab])?)",
+            lower
         )
-        if match:
-            salary = text[match.start():match.end()]
+        if tv_match:
+            grade = tv_match.group(1)
+            # Validate that it's a reasonable pay grade (1-15, possibly with Ü or a/b)
+            grade_num = re.match(r"(\d+)", grade)
+            if grade_num and 1 <= int(grade_num.group(1)) <= 15:
+                # Extract and standardize the format
+                full_match = text[tv_match.start():tv_match.end()]
+                salary = re.sub(r'\s+', ' ', full_match.upper())
+                # Standardize TV-L, TVöD, etc.
+                salary = re.sub(r'TV-?[LÖD]+', 'TV-L', salary)
+                salary = re.sub(r'TV[ÖO]D', 'TVöD', salary)
+        
+        if not salary:
+            # Priority 2: Look for E/EG groups (without TV-L prefix)
+            e_match = re.search(
+                r"\b(?:e|eg)\s*(\d{1,2}[üÜ]?(?:\s*[ab])?)\b",
+                lower
+            )
+            if e_match:
+                grade = e_match.group(1)
+                grade_num = re.match(r"(\d+)", grade)
+                if grade_num and 1 <= int(grade_num.group(1)) <= 15:
+                    # Make sure it's not part of a longer number (e.g., "e 2016" or "e 19280")
+                    # Check what comes after
+                    after_pos = e_match.end()
+                    if after_pos < len(lower):
+                        following_text = lower[after_pos:min(after_pos + 10, len(lower))]
+                        # If there are more digits following, it's likely not a pay grade
+                        if not re.match(r'\d', following_text):
+                            full_match = text[e_match.start():e_match.end()]
+                            # Standardize format to "E X" or "EG X"
+                            if 'eg' in lower[e_match.start():e_match.end()]:
+                                salary = f"EG {grade.upper()}"
+                            else:
+                                salary = f"E {grade.upper()}"
+        
+        if not salary:
+            # Priority 3: Look for A groups (Beamtenbesoldung)
+            a_match = re.search(
+                r"\ba\s*(\d{1,2})\b",
+                lower
+            )
+            if a_match:
+                grade = a_match.group(1)
+                if 1 <= int(grade) <= 16:
+                    salary = f"A {grade}"
+        
+        if not salary:
+            # Priority 4: Look for Euro amounts
+            # Pattern for various Euro formats
+            euro_patterns = [
+                # X.XXX €/Euro per time period
+                r"(\d{1,5}(?:[.,]\d{1,3})?)\s*(?:€|eur|euro)\s*(?:/|pro|je)?\s*(?:stunde|std\.?|monat|jahr|woche|tag)",
+                # X.XXX €/Euro standalone
+                r"(\d{1,5}(?:[.,]\d{1,3})?)\s*(?:€|eur|euro)(?:\s|$|[^\w])",
+                # Stundenlohn/Monatslohn X €
+                r"(?:stunden|monats|jahres|wochen)lohn\s*(?:von)?\s*(\d{1,5}(?:[.,]\d{1,3})?)\s*(?:€|eur|euro)",
+                # X €/h, X €/Std
+                r"(\d{1,5}(?:[.,]\d{1,3})?)\s*€\s*/\s*(?:h|std\.?)",
+            ]
+            
+            for pattern in euro_patterns:
+                euro_match = re.search(pattern, lower)
+                if euro_match:
+                    # Extract the original text maintaining case
+                    salary = text[euro_match.start():euro_match.end()]
+                    # Clean up and standardize
+                    salary = re.sub(r'\s+', ' ', salary).strip()
+                    break
 
         return fixedterm, workinghours, salary
 
