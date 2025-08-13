@@ -98,6 +98,7 @@ def test_profile_window_width_respects_screen():
         QtWidgets.QApplication,
         QtWidgets.QApplication.instance() or QtWidgets.QApplication([]),
     )
+    assert app is not None
     win = ProfileWindow(stats, df)  # Pass dataframe as second argument
     win.show()
     app.processEvents()
