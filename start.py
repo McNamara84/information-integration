@@ -100,7 +100,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._clean_button.setEnabled(False)
         self._clean_button.clicked.connect(self._clean_data)
 
-        self._dedupe_button = QtWidgets.QPushButton("Dubletten entfernen")
+        self._dedupe_button = QtWidgets.QPushButton("Dubletten finden")
         self._dedupe_button.setEnabled(False)
         self._dedupe_button.clicked.connect(self._remove_duplicates)
 
