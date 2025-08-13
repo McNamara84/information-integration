@@ -512,14 +512,17 @@ def find_fuzzy_duplicates(
 
     Uses a TF-IDF vectorization with nearest-neighbor search to reduce the
     number of pairwise comparisons, avoiding the quadratic complexity of a
-    naive nested loop.
+    naive nested loop.  Each candidate pair is then compared column-wise and
+    considered a duplicate only if *all* selected columns reach the given
+    similarity threshold.  This reduces false positives where, for example,
+    generic job descriptions are identical but other attributes differ.
 
     Parameters
     ----------
     df : pd.DataFrame
         Input dataframe to search for duplicates.
     columns : list[str] | None
-        Columns whose values are concatenated for comparison. If ``None``,
+        Columns to compare for duplicates. If ``None``,
         :data:`DEDUPLICATE_COLUMNS` is used.
     threshold : int
         Similarity threshold (0-100). Higher values mean stricter matching.
@@ -561,20 +564,32 @@ def find_fuzzy_duplicates(
         for j in neighbors:
             if j == i or j in drop_indices:
                 continue
-            score = fuzz.token_set_ratio(keys.iloc[i], keys.iloc[j])
-            if score >= threshold:
-                row_i = df.iloc[i]
-                row_j = df.iloc[j]
-                nonnull_i = row_i.count()
-                nonnull_j = row_j.count()
-                if nonnull_i >= nonnull_j:
-                    keep_idx, drop_idx = i, j
-                else:
-                    keep_idx, drop_idx = j, i
-                drop_indices.add(drop_idx)
-                pairs.append((keep_idx, drop_idx))
-                if drop_idx == i:
-                    break
+
+            row_i = df.iloc[i]
+            row_j = df.iloc[j]
+            company_sim = fuzz.token_set_ratio(
+                str(row_i.get("company", "")), str(row_j.get("company", ""))
+            )
+            jobdesc_sim = fuzz.token_set_ratio(
+                str(row_i.get("jobdescription", "")),
+                str(row_j.get("jobdescription", "")),
+            )
+
+            company_threshold = max(80, threshold - 10)
+
+            if not (company_sim >= company_threshold and jobdesc_sim >= threshold):
+                continue
+
+            nonnull_i = row_i.count()
+            nonnull_j = row_j.count()
+            if nonnull_i >= nonnull_j:
+                keep_idx, drop_idx = i, j
+            else:
+                keep_idx, drop_idx = j, i
+            drop_indices.add(drop_idx)
+            pairs.append((keep_idx, drop_idx))
+            if drop_idx == i:
+                break
 
     duplicate_rows = []
     for pair_id, (keep_idx, drop_idx) in enumerate(pairs):
