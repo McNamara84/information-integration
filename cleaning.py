@@ -759,9 +759,10 @@ def find_fuzzy_duplicates(
     -------
     tuple[pd.DataFrame, pd.DataFrame]
         A tuple of (cleaned_dataframe, duplicates_dataframe). The
-        duplicates dataframe lists potential duplicate pairs with a
-        ``keep`` column indicating the recommended record to retain and a
-        ``pair_id`` column grouping corresponding rows.
+        duplicates dataframe groups related records by a ``pair_id``. For
+        each group, one record marked with ``keep=True`` is the recommended
+        entry to retain, followed by all duplicate rows marked with
+        ``keep=False`` that should be removed.
     """
 
     columns = columns or DEDUPLICATE_COLUMNS
@@ -784,7 +785,7 @@ def find_fuzzy_duplicates(
     distances, indices = nn.kneighbors(matrix, n_neighbors=n_neighbors)
 
     drop_indices: set[int] = set()
-    pairs: list[tuple[int, int]] = []
+    pairs: dict[int, list[int]] = {}
 
     for i, neighbors in enumerate(indices):
         if i in drop_indices:
@@ -833,21 +834,23 @@ def find_fuzzy_duplicates(
             else:
                 keep_idx, drop_idx = j, i
             drop_indices.add(drop_idx)
-            pairs.append((keep_idx, drop_idx))
+            pairs.setdefault(keep_idx, []).append(drop_idx)
             if drop_idx == i:
                 break
 
     duplicate_rows = []
-    for pair_id, (keep_idx, drop_idx) in enumerate(pairs):
+    for pair_id, (keep_idx, drop_list) in enumerate(pairs.items()):
         keep_row = df.iloc[keep_idx].copy()
         keep_row["keep"] = True
         keep_row["pair_id"] = pair_id
         keep_row["orig_index"] = keep_idx
-        drop_row = df.iloc[drop_idx].copy()
-        drop_row["keep"] = False
-        drop_row["pair_id"] = pair_id
-        drop_row["orig_index"] = drop_idx
-        duplicate_rows.extend([keep_row, drop_row])
+        duplicate_rows.append(keep_row)
+        for drop_idx in drop_list:
+            drop_row = df.iloc[drop_idx].copy()
+            drop_row["keep"] = False
+            drop_row["pair_id"] = pair_id
+            drop_row["orig_index"] = drop_idx
+            duplicate_rows.append(drop_row)
 
     duplicates = pd.DataFrame(duplicate_rows)
     if not duplicates.empty:
