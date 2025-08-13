@@ -199,10 +199,10 @@ def test_clean_dataframe_without_location_column():
         assert cleaned["other"].iloc[2] == "AT&T"
 
 
-def test_extract_jobterms_info():
+def test_extract_jobdescription_info():
     df = pd.DataFrame(
         {
-            "jobterms": [
+            "jobdescription": [
                 "befristet bis 31.12.2025, Vollzeit, Vergütung nach TV-L E13",
                 "unbefristet, Teilzeit (50%), E9 TV-L",
                 None,

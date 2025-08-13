@@ -16,7 +16,7 @@ Ein Projekt im Rahmen der Hausarbeit im 6. Fachsemester des Studiengangs **Infor
   - Dekodiert HTML-Entitäten, entfernt Tags und extrahiert Postleitzahlen aus Firmennamen in eine eigene Spalte.
   - Ersetzt Kfz-Kennzeichen durch vollständige Ortsnamen (Wikidata API + Cache).
   - Standardisiert Firmennamen und bereinigt kryptische Werte.
-  - Extrahiert Angaben zu Befristung, Arbeitszeit und Vergütung aus dem Attribut `jobterms` in separate Spalten.
+  - Extrahiert Angaben zu Befristung, Arbeitszeit und Vergütung aus dem Attribut `jobdescription` in separate Spalten.
 - **Data Profiling & Reporting**
   - Grafische Oberfläche (PyQt6) zur Anzeige von Profiling-Kennzahlen und zur Klassifikation von Datenfehlern nach Naumann/Leser.
   - Export von Bereinigungen und Fehlerberichten als Excel-Datei.

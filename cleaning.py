@@ -418,13 +418,13 @@ def resolve_license_plates_in_series(series: pd.Series, license_plate_map: Dict[
     return series.apply(replace_license_plates)
 
 
-def extract_jobterms_info(series: pd.Series) -> tuple[pd.Series, pd.Series, pd.Series]:
-    """Extract fixed-term status, working hours, and salary from a jobterms column.
+def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Extract fixed-term status, working hours, and salary from a jobdescription column.
 
     Parameters
     ----------
     series:
-        Series containing textual job terms.
+        Series containing textual job descriptions.
 
     Returns
     -------
@@ -562,8 +562,8 @@ def clean_dataframe(
             progress = 10.0 + (idx / total * 90.0)
             progress_callback(progress)
 
-    if 'jobterms' in cleaned.columns:
-        fixedterm, workinghours, salary = extract_jobterms_info(cleaned['jobterms'])
+    if 'jobdescription' in cleaned.columns:
+        fixedterm, workinghours, salary = extract_jobdescription_info(cleaned['jobdescription'])
         cleaned['fixedterm'] = fixedterm
         cleaned['workinghours'] = workinghours
         cleaned['salary'] = salary
