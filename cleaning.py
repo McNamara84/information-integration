@@ -816,6 +816,8 @@ def find_fuzzy_duplicates(
                 val_j = row_j.get(col)
                 if pd.isna(val_i) and pd.isna(val_j):
                     col_sim = 100
+                elif pd.isna(val_i) or pd.isna(val_j):
+                    col_sim = 0
                 else:
                     col_sim = fuzz.token_set_ratio(str(val_i), str(val_j))
                 if col_sim < threshold:

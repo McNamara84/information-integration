@@ -69,3 +69,24 @@ def test_no_duplicates_when_workinghours_differs():
 
     assert duplicates.empty
     assert len(cleaned) == 2
+
+
+def test_no_false_duplicates_with_missing_vs_string_value():
+    df = pd.DataFrame({
+        "company": ["ABC GmbH", "ABC GmbH"],
+        "location": ["Berlin", "Berlin"],
+        "jobtype": ["Librarian", "Librarian"],
+        "jobdescription": ["Manage books", "Manage books"],
+        "fixedterm": [None, None],
+        "workinghours": ["Vollzeit", "Vollzeit"],
+        "salary": [None, "None provided"],
+    })
+
+    cleaned, duplicates = find_fuzzy_duplicates(
+        df,
+        DEDUPLICATE_COLUMNS,
+        threshold=90,
+    )
+
+    assert duplicates.empty
+    assert len(cleaned) == 2
