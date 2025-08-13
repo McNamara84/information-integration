@@ -227,14 +227,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _remove_duplicates(self) -> None:
         self._status.showMessage("Suche nach Dubletten...")
-        cleaned, duplicates = find_fuzzy_duplicates(
+        _, duplicates = find_fuzzy_duplicates(
             self._dataframe,
             DEDUPLICATE_COLUMNS,
         )
-        self._dataframe = cleaned
         if not duplicates.empty:
             window = DuplicatesWindow(duplicates, self)
             window.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
+            window.remove_requested.connect(self._apply_duplicate_removal)
             window.show()
         else:
             if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
@@ -244,6 +244,12 @@ class MainWindow(QtWidgets.QMainWindow):
                     "Es wurden keine Dubletten gefunden.",
                 )
         self._status.showMessage("Dublettenprüfung abgeschlossen", 5000)
+
+    @QtCore.pyqtSlot(list)
+    def _apply_duplicate_removal(self, indices: list[int]) -> None:
+        if indices:
+            self._dataframe = self._dataframe.drop(index=indices).reset_index(drop=True)
+            self._status.showMessage(f"{len(indices)} Dubletten entfernt", 5000)
 
 class ProfileWindow(QtWidgets.QMainWindow):
     closed = QtCore.pyqtSignal()
@@ -350,33 +356,75 @@ class ProfileWindow(QtWidgets.QMainWindow):
 
 
 class DuplicatesWindow(QtWidgets.QMainWindow):
+    remove_requested = QtCore.pyqtSignal(list)
+
     def __init__(self, dataframe, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Gefundene Dubletten")
         if APP_ICON is not None:
             self.setWindowIcon(APP_ICON)
+        self._dataframe = dataframe
+
         container = QtWidgets.QWidget(self)
         layout = QtWidgets.QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
-        display_df = dataframe.drop(columns=["pair_id", "keep"], errors="ignore")
+
+        self._select_all = QtWidgets.QCheckBox("Alle auswählen", self)
+        self._select_all.stateChanged.connect(self._on_select_all)
+        layout.addWidget(self._select_all)
+
+        display_df = dataframe.drop(
+            columns=["pair_id", "keep", "orig_index"], errors="ignore"
+        )
         table = QtWidgets.QTableWidget(self)
         table.setAlternatingRowColors(True)
         table.setRowCount(len(display_df))
-        table.setColumnCount(len(display_df.columns))
-        table.setHorizontalHeaderLabels(display_df.columns.tolist())
-        for row_idx, (_, row) in enumerate(display_df.iterrows()):
-            for col_idx, value in enumerate(row):
+        table.setColumnCount(len(display_df.columns) + 1)
+        table.setHorizontalHeaderLabels(["Auswählen"] + display_df.columns.tolist())
+
+        self._checkboxes: list[QtWidgets.QCheckBox] = []
+        self._checkbox_map: dict[QtWidgets.QCheckBox, int] = {}
+
+        for row_idx, row in dataframe.iterrows():
+            display_row = display_df.iloc[row_idx]
+            for col_idx, value in enumerate(display_row):
                 item = QtWidgets.QTableWidgetItem(str(value))
-                table.setItem(row_idx, col_idx, item)
-            if "keep" in dataframe.columns:
-                color = QtGui.QColor(200, 255, 200) if dataframe.iloc[row_idx]["keep"] else QtGui.QColor(255, 200, 200)
-                for col_idx in range(table.columnCount()):
-                    cell_item = table.item(row_idx, col_idx)
-                    if cell_item is not None:
-                        cell_item.setBackground(color)
+                table.setItem(row_idx, col_idx + 1, item)
+            if not row.get("keep", True):
+                checkbox = QtWidgets.QCheckBox()
+                checkbox.setChecked(True)
+                checkbox.stateChanged.connect(self._update_button_state)
+                table.setCellWidget(row_idx, 0, checkbox)
+                self._checkboxes.append(checkbox)
+                self._checkbox_map[checkbox] = int(row.get("orig_index", row_idx))
+            else:
+                item = QtWidgets.QTableWidgetItem("")
+                item.setFlags(QtCore.Qt.ItemFlag.ItemIsEnabled)
+                table.setItem(row_idx, 0, item)
+
+            color = (
+                QtGui.QColor(200, 255, 200)
+                if row.get("keep", False)
+                else QtGui.QColor(255, 200, 200)
+            )
+            for col_idx in range(table.columnCount()):
+                cell_item = table.item(row_idx, col_idx)
+                if cell_item is not None:
+                    cell_item.setBackground(color)
+
         table.resizeColumnsToContents()
         layout.addWidget(table)
+        self._table = table
+
+        self._remove_button = QtWidgets.QPushButton("Dubletten entfernen", self)
+        self._remove_button.clicked.connect(self._emit_selection)
+        layout.addWidget(self._remove_button)
+
         self.setCentralWidget(container)
+
+        self._select_all.setChecked(True)
+        self._update_button_state()
+
         header = _require(table.verticalHeader(), "verticalHeader")
         total_width = header.width() + table.frameWidth() * 2
         v_scroll = _require(table.verticalScrollBar(), "verticalScrollBar")
@@ -386,6 +434,28 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
         screen = QtWidgets.QApplication.primaryScreen()
         screen_width = screen.availableGeometry().width() if screen else total_width
         self.resize(min(total_width, screen_width), 400)
+
+    def _on_select_all(self, state: int) -> None:
+        checked = state == QtCore.Qt.CheckState.Checked.value
+        for cb in self._checkboxes:
+            cb.setChecked(checked)
+        self._update_button_state()
+
+    def _update_button_state(self) -> None:
+        any_checked = any(cb.isChecked() for cb in self._checkboxes)
+        self._remove_button.setVisible(any_checked)
+        all_checked = all(cb.isChecked() for cb in self._checkboxes)
+        self._select_all.blockSignals(True)
+        self._select_all.setChecked(all_checked)
+        self._select_all.blockSignals(False)
+
+        
+    def _emit_selection(self) -> None:
+        indices = [
+            self._checkbox_map[cb] for cb in self._checkboxes if cb.isChecked()
+        ]
+        self.remove_requested.emit(indices)
+        self.close()
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Startet die Informationsintegration-GUI")

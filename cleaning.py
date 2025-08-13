@@ -842,9 +842,11 @@ def find_fuzzy_duplicates(
         keep_row = df.iloc[keep_idx].copy()
         keep_row["keep"] = True
         keep_row["pair_id"] = pair_id
+        keep_row["orig_index"] = keep_idx
         drop_row = df.iloc[drop_idx].copy()
         drop_row["keep"] = False
         drop_row["pair_id"] = pair_id
+        drop_row["orig_index"] = drop_idx
         duplicate_rows.extend([keep_row, drop_row])
 
     duplicates = pd.DataFrame(duplicate_rows)
