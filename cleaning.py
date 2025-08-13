@@ -788,8 +788,8 @@ def find_fuzzy_duplicates(
     distances, indices = nn.kneighbors(matrix, n_neighbors=n_neighbors)
 
     drop_indices: set[int] = set()
-    pairs: dict[int, list[int]] = {}
-    scores: dict[int, list[int]] = {}
+    # Map of "keep" index -> list of tuples (drop_index, similarity_score)
+    pairs: dict[int, list[tuple[int, int]]] = {}
 
     total = len(indices)
     for i, neighbors in enumerate(indices):
@@ -843,8 +843,7 @@ def find_fuzzy_duplicates(
             else:
                 keep_idx, drop_idx = j, i
             drop_indices.add(drop_idx)
-            pairs.setdefault(keep_idx, []).append(drop_idx)
-            scores.setdefault(keep_idx, []).append(similarity)
+            pairs.setdefault(keep_idx, []).append((drop_idx, similarity))
             if drop_idx == i:
                 break
 
@@ -855,15 +854,15 @@ def find_fuzzy_duplicates(
         progress_callback(100)
 
     duplicate_rows = []
-    for pair_id, (keep_idx, drop_list) in enumerate(pairs.items()):
+    for pair_id, (keep_idx, drop_pairs) in enumerate(pairs.items()):
         keep_row = df.iloc[keep_idx].copy()
         keep_row["keep"] = True
         keep_row["pair_id"] = pair_id
         keep_row["orig_index"] = keep_idx
-        keep_scores = scores.get(keep_idx, [])
+        keep_scores = [score for _, score in drop_pairs]
         keep_row["probability"] = max(keep_scores) if keep_scores else 100
         duplicate_rows.append(keep_row)
-        for drop_idx, score in zip(drop_list, keep_scores):
+        for drop_idx, score in drop_pairs:
             drop_row = df.iloc[drop_idx].copy()
             drop_row["keep"] = False
             drop_row["pair_id"] = pair_id

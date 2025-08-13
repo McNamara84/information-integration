@@ -1,4 +1,5 @@
 import pandas as pd
+from fuzzywuzzy import fuzz
 
 from cleaning import DEDUPLICATE_COLUMNS, find_fuzzy_duplicates
 
@@ -151,3 +152,48 @@ def test_duplicates_sorted_by_probability_desc():
     probs = duplicates["probability"].to_list()
     assert all(probs[i] >= probs[i + 1] for i in range(len(probs) - 1))
     assert len(set(probs)) > 1
+
+
+def test_probability_matches_each_drop_row():
+    df = pd.DataFrame(
+        {
+            "company": ["ABC GmbH", "ABCD GmbH", "ABC GMBH"],
+            "location": ["Berlin", "Berlin", "Berlin"],
+            "jobtype": ["Librarian", "Librarian", "Librarian"],
+            "jobdescription": ["Manage books", "Manage books", "Manage books"],
+            "fixedterm": [None, None, None],
+            "workinghours": ["Vollzeit", "Vollzeit", "Vollzeit"],
+            "salary": ["E 9", "E 9", "E 9"],
+        }
+    )
+
+    _, duplicates = find_fuzzy_duplicates(
+        df,
+        DEDUPLICATE_COLUMNS,
+        threshold=80,
+    )
+
+    drop_rows = duplicates[duplicates["keep"] == False]
+    prob_map = dict(zip(drop_rows["company"], drop_rows["probability"]))
+    expected_abcd = [
+        fuzz.token_set_ratio("ABC GmbH", "ABCD GmbH"),
+        fuzz.token_set_ratio("Manage books", "Manage books"),
+        fuzz.token_set_ratio("Berlin", "Berlin"),
+        fuzz.token_set_ratio("Librarian", "Librarian"),
+        100,
+        fuzz.token_set_ratio("Vollzeit", "Vollzeit"),
+        fuzz.token_set_ratio("E 9", "E 9"),
+    ]
+    expected_gmbh = [
+        fuzz.token_set_ratio("ABC GmbH", "ABC GMBH"),
+        fuzz.token_set_ratio("Manage books", "Manage books"),
+        fuzz.token_set_ratio("Berlin", "Berlin"),
+        fuzz.token_set_ratio("Librarian", "Librarian"),
+        100,
+        fuzz.token_set_ratio("Vollzeit", "Vollzeit"),
+        fuzz.token_set_ratio("E 9", "E 9"),
+    ]
+    expected1 = int(sum(expected_abcd) / len(expected_abcd))
+    expected2 = int(sum(expected_gmbh) / len(expected_gmbh))
+    assert prob_map["ABCD GmbH"] == expected1
+    assert prob_map["ABC GMBH"] == expected2
