@@ -17,7 +17,7 @@ Ein Projekt im Rahmen der Hausarbeit im 6. Fachsemester des Studiengangs **Infor
   - Ersetzt Kfz-Kennzeichen durch vollständige Ortsnamen (Wikidata API + Cache).
   - Standardisiert Firmennamen und bereinigt kryptische Werte.
 - **Data Profiling & Reporting**
-  - Grafische Oberfläche (PyQt5) zur Anzeige von Profiling-Kennzahlen und zur Klassifikation von Datenfehlern nach Naumann/Leser.
+  - Grafische Oberfläche (PyQt6) zur Anzeige von Profiling-Kennzahlen und zur Klassifikation von Datenfehlern nach Naumann/Leser.
   - Export von Bereinigungen und Fehlerberichten als Excel-Datei.
 - **Dublettenerkennung**
   - Fuzzy-Matching über "company", "location", "jobtype" und "jobdescription".
@@ -54,7 +54,7 @@ pytest
 ├── cleaning.py        # Funktionen zur Bereinigung und Normalisierung
 ├── load_bibliojobs.py # CSV-Import mit individuellem Delimiter
 ├── profiling.py       # Data-Profiling und Fehlerklassifikation
-├── start.py           # PyQt5-GUI für Profiling, Bereinigung und Export
+├── start.py           # PyQt6-GUI für Profiling, Bereinigung und Export
 └── tests/             # Unit- und Integrationstests
 ```
 

@@ -4,10 +4,10 @@ from typing import cast
 from profiling import profile_dataframe, top_error, get_all_error_types
 
 try:  # pragma: no cover - import guard
-    from PyQt5 import QtWidgets
+    from PyQt6 import QtWidgets
 except Exception:  # noqa: BLE001 - broad to handle missing shared libs
     pytest.skip(
-        "PyQt5 is required for profiling GUI tests", allow_module_level=True
+        "PyQt6 is required for profiling GUI tests", allow_module_level=True
     )
 
 
@@ -89,7 +89,7 @@ def test_get_all_error_types_no_errors():
 def test_profile_window_width_respects_screen():
     import os
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from PyQt5 import QtWidgets
+    from PyQt6 import QtWidgets
     from start import ProfileWindow
 
     df = pd.DataFrame({"a": [1], "b": [2], "c": [3]})
@@ -147,7 +147,7 @@ def test_profile_window_cleanup():
     import os
 
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from PyQt5 import QtWidgets
+    from PyQt6 import QtWidgets
     from start import MainWindow
 
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
@@ -164,7 +164,8 @@ def test_profile_window_cleanup():
 
     win._show_profile()
     app.processEvents()
-    assert not first.isVisible()
+    with pytest.raises(RuntimeError):
+        first.isVisible()
 
     assert win._profile_window is not None
     win._profile_window.close()
@@ -177,7 +178,7 @@ def test_export_report(tmp_path, monkeypatch):
     import os
 
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from PyQt5 import QtWidgets
+    from PyQt6 import QtWidgets
     from start import ProfileWindow
 
     # Create test data with known error patterns
@@ -236,7 +237,7 @@ def test_export_report_no_errors(tmp_path, monkeypatch):
     import os
 
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-    from PyQt5 import QtWidgets
+    from PyQt6 import QtWidgets
     from start import ProfileWindow
 
     # Create clean test data

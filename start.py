@@ -6,7 +6,7 @@ import sys
 from typing import cast, TypeVar
 
 import pandas as pd
-from PyQt5 import QtCore, QtWidgets, QtGui
+from PyQt6 import QtCore, QtWidgets, QtGui
 
 ICON_PATH = os.path.join(os.path.dirname(__file__), "fh_potsdam_logo.svg")
 # Will be initialized after QApplication creation in main()

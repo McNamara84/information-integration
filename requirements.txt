@@ -6,6 +6,6 @@ scikit-learn
 sqlalchemy
 mysqlclient
 psycopg2-binary
-PyQt5
+PyQt6
 nltk
 requests
