@@ -815,7 +815,8 @@ def find_fuzzy_duplicates(
             # Job descriptions must now match exactly (ignoring case and
             # surrounding whitespace) to avoid false positives where generic
             # templates are used for different positions within the same
-            # location.
+            # templates are used for different positions, but only records with
+            # exactly matching locations are compared.
             if not (company_sim >= company_threshold and jobdesc_sim == 100):
                 continue
 
