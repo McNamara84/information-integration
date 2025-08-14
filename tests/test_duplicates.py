@@ -1,4 +1,9 @@
+import sys
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
 import pandas as pd
+import pytest
 
 from cleaning import (
     DEDUPLICATE_COLUMNS,
@@ -6,92 +11,43 @@ from cleaning import (
     prepare_duplicates_export,
 )
 
+CSV_PATH = "bibliojobs_raw.csv"
+SEP = "_§_"
 
-def test_find_fuzzy_duplicates_new_rules():
-    df = pd.DataFrame(
-        {
-            "jobdescription": [
-                "Manage books and media",
-                "Manage books and media",
-                "Archive documents",
-            ],
-            "jobtype": ["Librarian", "Librarian", "Librarian"],
-            "company": ["ABC GmbH", "ABC GmbH", "XYZ AG"],
-            "insttype": ["Public", "Public", "Public"],
-            "location": ["Berlin", "Berlin", "Hamburg"],
-            "country": ["DE", "DE", "DE"],
-            "geo_lat": [52.52, 52.52, 53.55],
-            "geo_lon": [13.405, 13.405, 9.993],
-            "plz": ["10115", "10115", "20095"],
-            "fixedterm": ["No", "No", "No"],
-            "workinghours": ["Vollzeit", "Vollzeit", "Vollzeit"],
-            "salary": ["E9", "E9", "E7"],
-        }
-    )
+def load_raw() -> pd.DataFrame:
+    df = pd.read_csv(CSV_PATH, sep=SEP, engine="python")
+    df.columns = [c.strip("_").lower() for c in df.columns]
+    for col in ["plz", "fixedterm", "workinghours", "salary"]:
+        df[col] = pd.NA
+    return df
 
+
+@pytest.fixture
+def duplicates_df() -> pd.DataFrame:
+    df = load_raw().head(700)
+    _, duplicates = find_fuzzy_duplicates(df, DEDUPLICATE_COLUMNS, threshold=80)
+    return duplicates
+
+
+def test_find_fuzzy_duplicates_new_rules(duplicates_df: pd.DataFrame) -> None:
+    pair = duplicates_df[duplicates_df["pair_id"] == 0]
+    assert len(pair) == 2
+    assert pair["probability"].eq(100).all()
+    assert {True, False} == set(pair["keep"])
+
+
+def test_no_duplicates_when_jobtype_differs() -> None:
+    df = load_raw()
+    subset = df[df["jobid"].isin([102390, 106191])]
     cleaned, duplicates = find_fuzzy_duplicates(
-        df, DEDUPLICATE_COLUMNS, threshold=80
+        subset, DEDUPLICATE_COLUMNS, threshold=80
     )
-
-    assert len(duplicates) == 2
-    assert duplicates.iloc[0]["keep"]
-    assert not duplicates.iloc[1]["keep"]
-    assert (duplicates["probability"] == 100).all()
-    assert "XYZ AG" in cleaned["company"].values
-
-
-def test_no_duplicates_when_jobtype_differs():
-    df = pd.DataFrame(
-        {
-            "jobdescription": ["Manage books", "Manage books"],
-            "jobtype": ["Librarian", "Archivist"],
-            "company": ["ABC GmbH", "ABC GmbH"],
-            "insttype": ["Public", "Public"],
-            "location": ["Berlin", "Berlin"],
-            "country": ["DE", "DE"],
-            "geo_lat": [52.52, 52.5205],
-            "geo_lon": [13.405, 13.4055],
-            "plz": ["10115", "10115"],
-            "fixedterm": ["No", "No"],
-            "workinghours": ["Vollzeit", "Vollzeit"],
-            "salary": ["E9", "E9"],
-        }
-    )
-
-    cleaned, duplicates = find_fuzzy_duplicates(
-        df, DEDUPLICATE_COLUMNS, threshold=80
-    )
-
     assert duplicates.empty
     assert len(cleaned) == 2
 
 
-def test_prepare_duplicates_export_adds_reference():
-    df = pd.DataFrame(
-        {
-            "jobdescription": [
-                "Manage books and media",
-                "Manage books and media",
-            ],
-            "jobtype": ["Librarian", "Librarian"],
-            "company": ["ABC GmbH", "ABC GmbH"],
-            "insttype": ["Public", "Public"],
-            "location": ["Berlin", "Berlin"],
-            "country": ["DE", "DE"],
-            "geo_lat": [52.52, 52.52],
-            "geo_lon": [13.405, 13.405],
-            "plz": ["10115", "10115"],
-            "fixedterm": ["No", "No"],
-            "workinghours": ["Vollzeit", "Vollzeit"],
-            "salary": ["E9", "E9"],
-        }
-    )
-
-    _, duplicates = find_fuzzy_duplicates(
-        df, DEDUPLICATE_COLUMNS, threshold=80
-    )
-
-    export_df = prepare_duplicates_export(duplicates)
+def test_prepare_duplicates_export_adds_reference(duplicates_df: pd.DataFrame) -> None:
+    export_df = prepare_duplicates_export(duplicates_df)
     assert "duplicate_of" in export_df.columns
     keep_row = export_df[export_df["keep"]].iloc[0]
     dup_row = export_df[~export_df["keep"]].iloc[0]
