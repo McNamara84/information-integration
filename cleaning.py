@@ -15,10 +15,15 @@ from sklearn.neighbors import NearestNeighbors
 
 
 DEDUPLICATE_COLUMNS = [
-    "company",
-    "location",
-    "jobtype",
     "jobdescription",
+    "jobtype",
+    "company",
+    "insttype",
+    "location",
+    "country",
+    "geo_lat",
+    "geo_lon",
+    "plz",
     "fixedterm",
     "workinghours",
     "salary",
@@ -734,17 +739,26 @@ def clean_dataframe(
 def find_fuzzy_duplicates(
     df: pd.DataFrame,
     columns: list[str] | None = None,
-    threshold: int = 90,
+    threshold: int = 80,
     progress_callback: Callable[[float], None] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Find and remove duplicate rows using fuzzy matching on selected columns.
 
     Uses a TF-IDF vectorization with nearest-neighbor search to reduce the
-    number of pairwise comparisons, avoiding the quadratic complexity of a
-    naive nested loop.  Each candidate pair is then compared column-wise and
-    considered a duplicate only if *all* selected columns reach the given
-    similarity threshold.  This reduces false positives where, for example,
-    generic job descriptions are identical but other attributes differ.
+    number of pairwise comparisons. For each candidate pair the algorithm
+    applies the domain specific rules for potential duplicates:
+
+    * ``jobtype``, ``insttype``, ``country``, ``fixedterm`` and
+      ``workinghours`` must match exactly.
+    * ``jobdescription``, ``company``, ``location``, ``plz`` and ``salary``
+      must be fuzzy-matched with a minimal similarity given by ``threshold``.
+    * ``geo_lat`` and ``geo_lon`` must lie close together.  Differences up to
+      ``0.1`` degrees (roughly 10 km) are gradually penalised; scores below the
+      threshold are rejected.
+
+    The resulting similarity scores are mapped to a probability in the range
+    50--100 where 50 represents merely satisfying the minimal conditions and
+    100 denotes a perfect match of all considered attributes.
 
     Parameters
     ----------
@@ -770,7 +784,7 @@ def find_fuzzy_duplicates(
 
     columns = columns or DEDUPLICATE_COLUMNS
 
-    # Create comparison keys
+    # Create comparison keys for the TF-IDF vectoriser
     keys = (
         df[columns]
         .fillna("")
@@ -785,11 +799,15 @@ def find_fuzzy_duplicates(
     nn.fit(matrix)
 
     n_neighbors = min(10, len(df))
-    distances, indices = nn.kneighbors(matrix, n_neighbors=n_neighbors)
+    _, indices = nn.kneighbors(matrix, n_neighbors=n_neighbors)
 
     drop_indices: set[int] = set()
-    # Map of "keep" index -> list of tuples (drop_index, similarity_score)
+    # Map of "keep" index -> list of tuples (drop_index, probability)
     pairs: dict[int, list[tuple[int, int]]] = {}
+
+    exact_fields = {"jobtype", "insttype", "country", "fixedterm", "workinghours"}
+    fuzzy_fields = {"jobdescription", "company", "location", "plz", "salary"}
+    numeric_fields = {"geo_lat", "geo_lon"}
 
     total = len(indices)
     for i, neighbors in enumerate(indices):
@@ -801,58 +819,61 @@ def find_fuzzy_duplicates(
 
             row_i = df.iloc[i]
             row_j = df.iloc[j]
-            company_sim = fuzz.token_set_ratio(
-                str(row_i.get("company", "")), str(row_j.get("company", ""))
-            )
-            jobdesc_i = str(row_i.get("jobdescription", "")).strip().lower()
-            jobdesc_j = str(row_j.get("jobdescription", "")).strip().lower()
-            jobdesc_sim = 100 if jobdesc_i == jobdesc_j else fuzz.token_set_ratio(
-                jobdesc_i, jobdesc_j
-            )
 
-            company_threshold = max(80, threshold - 10)
-
-            # Job descriptions must now match exactly (ignoring case and
-            # surrounding whitespace) to avoid false positives where generic
-            # templates are used for different positions within the same
-            # templates are used for different positions, but only records with
-            # exactly matching locations are compared.
-            if not (company_sim >= company_threshold and jobdesc_sim == 100):
+            if any(str(row_i.get(f)) != str(row_j.get(f)) for f in exact_fields):
                 continue
 
-            sims = [company_sim, jobdesc_sim]
+            scores: list[float] = []
             match = True
-            for col in columns:
-                if col in {"company", "jobdescription"}:
+
+            for col in fuzzy_fields:
+                if col not in df.columns:
                     continue
                 val_i = row_i.get(col)
                 val_j = row_j.get(col)
-                if col == "location":
-                    if pd.isna(val_i) and pd.isna(val_j):
-                        sims.append(100)
-                        continue
-                    if pd.isna(val_i) or pd.isna(val_j):
-                        match = False
-                        break
-                    if str(val_i).strip().lower() != str(val_j).strip().lower():
-                        match = False
-                        break
-                    sims.append(100)
-                    continue
                 if pd.isna(val_i) and pd.isna(val_j):
-                    col_sim = 100
-                elif pd.isna(val_i) or pd.isna(val_j):
-                    col_sim = 0
-                else:
-                    col_sim = fuzz.token_set_ratio(str(val_i), str(val_j))
-                sims.append(col_sim)
-                if col_sim < threshold:
+                    continue
+                if pd.isna(val_i) or pd.isna(val_j):
                     match = False
                     break
+                score = fuzz.token_set_ratio(str(val_i), str(val_j))
+                if score < threshold:
+                    match = False
+                    break
+                scores.append(score)
+
             if not match:
                 continue
 
-            similarity = int(sum(sims) / len(sims))
+            for col in numeric_fields:
+                if col not in df.columns:
+                    continue
+                val_i = row_i.get(col)
+                val_j = row_j.get(col)
+                if pd.isna(val_i) and pd.isna(val_j):
+                    continue
+                if pd.isna(val_i) or pd.isna(val_j):
+                    match = False
+                    break
+                try:
+                    diff = abs(float(val_i) - float(val_j))
+                except Exception:
+                    match = False
+                    break
+                score = max(0.0, 100 * (1 - min(diff / 0.1, 1)))
+                if score < threshold:
+                    match = False
+                    break
+                scores.append(score)
+
+            if not match:
+                continue
+
+            if scores:
+                avg_norm = sum((s - threshold) / (100 - threshold) for s in scores) / len(scores)
+                probability = int(50 + avg_norm * 50)
+            else:
+                probability = 50
 
             nonnull_i = row_i.count()
             nonnull_j = row_j.count()
@@ -861,7 +882,7 @@ def find_fuzzy_duplicates(
             else:
                 keep_idx, drop_idx = j, i
             drop_indices.add(drop_idx)
-            pairs.setdefault(keep_idx, []).append((drop_idx, similarity))
+            pairs.setdefault(keep_idx, []).append((drop_idx, probability))
             if drop_idx == i:
                 break
 
