@@ -1,11 +1,11 @@
 import os
 
 import pandas as pd
+import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PyQt6 import QtWidgets
-
+QtWidgets = pytest.importorskip("PyQt6.QtWidgets", exc_type=ImportError)
 from start import DuplicatesWindow
 
 
@@ -26,4 +26,3 @@ def test_duplicates_window_filters_probability():
     assert len(window._dataframe) == 2
     window.close()
     app.quit()
-
