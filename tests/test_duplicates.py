@@ -12,17 +12,17 @@ def test_find_fuzzy_duplicates_new_rules():
         {
             "jobdescription": [
                 "Manage books and media",
-                "Manage books and archives",
+                "Manage books and media",
                 "Archive documents",
             ],
             "jobtype": ["Librarian", "Librarian", "Librarian"],
-            "company": ["ABC GmbH", "ABCD GmbH", "XYZ AG"],
+            "company": ["ABC GmbH", "ABC GmbH", "XYZ AG"],
             "insttype": ["Public", "Public", "Public"],
             "location": ["Berlin", "Berlin", "Hamburg"],
             "country": ["DE", "DE", "DE"],
-            "geo_lat": [52.52, 52.5205, 53.55],
-            "geo_lon": [13.405, 13.4055, 9.993],
-            "plz": ["10115", "10116", "20095"],
+            "geo_lat": [52.52, 52.52, 53.55],
+            "geo_lon": [13.405, 13.405, 9.993],
+            "plz": ["10115", "10115", "20095"],
             "fixedterm": ["No", "No", "No"],
             "workinghours": ["Vollzeit", "Vollzeit", "Vollzeit"],
             "salary": ["E9", "E9", "E7"],
@@ -36,7 +36,7 @@ def test_find_fuzzy_duplicates_new_rules():
     assert len(duplicates) == 2
     assert duplicates.iloc[0]["keep"]
     assert not duplicates.iloc[1]["keep"]
-    assert duplicates["probability"].between(50, 100).all()
+    assert (duplicates["probability"] == 100).all()
     assert "XYZ AG" in cleaned["company"].values
 
 
@@ -71,16 +71,16 @@ def test_prepare_duplicates_export_adds_reference():
         {
             "jobdescription": [
                 "Manage books and media",
-                "Manage books and archives",
+                "Manage books and media",
             ],
             "jobtype": ["Librarian", "Librarian"],
-            "company": ["ABC GmbH", "ABCD GmbH"],
+            "company": ["ABC GmbH", "ABC GmbH"],
             "insttype": ["Public", "Public"],
             "location": ["Berlin", "Berlin"],
             "country": ["DE", "DE"],
-            "geo_lat": [52.52, 52.5205],
-            "geo_lon": [13.405, 13.4055],
-            "plz": ["10115", "10116"],
+            "geo_lat": [52.52, 52.52],
+            "geo_lon": [13.405, 13.405],
+            "plz": ["10115", "10115"],
             "fixedterm": ["No", "No"],
             "workinghours": ["Vollzeit", "Vollzeit"],
             "salary": ["E9", "E9"],

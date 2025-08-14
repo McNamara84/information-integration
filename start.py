@@ -412,9 +412,11 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
         self.setWindowTitle("Gefundene Dubletten")
         if APP_ICON is not None:
             self.setWindowIcon(APP_ICON)
-        self._dataframe = dataframe.sort_values(
-            "probability", ascending=False
-        ).reset_index(drop=True)
+        self._dataframe = (
+            dataframe[dataframe["probability"] == 100]
+            .drop(columns=["probability"])
+            .reset_index(drop=True)
+        )
 
         container = QtWidgets.QWidget(self)
         layout = QtWidgets.QVBoxLayout(container)
