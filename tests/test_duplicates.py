@@ -1,7 +1,5 @@
 import pandas as pd
 
-import pandas as pd
-
 from cleaning import DEDUPLICATE_COLUMNS, find_fuzzy_duplicates
 
 
