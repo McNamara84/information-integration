@@ -919,3 +919,33 @@ def find_fuzzy_duplicates(
     cleaned = df.drop(index=drop_indices).reset_index(drop=True)
     return cleaned, duplicates
 
+
+def prepare_duplicates_export(duplicates: pd.DataFrame) -> pd.DataFrame:
+    """Prepare duplicates dataframe for CSV export.
+
+    Adds a ``duplicate_of`` column referencing the ``orig_index`` of the
+    record that should be kept for each pair. Rows marked with ``keep=True``
+    will have ``duplicate_of`` set to :data:`pandas.NA`.
+
+    Parameters
+    ----------
+    duplicates : pd.DataFrame
+        Dataframe as returned by :func:`find_fuzzy_duplicates`.
+
+    Returns
+    -------
+    pd.DataFrame
+        A copy of ``duplicates`` with the additional ``duplicate_of`` column.
+    """
+
+    if duplicates.empty:
+        return duplicates.copy()
+
+    pair_to_original = (
+        duplicates[duplicates["keep"]].set_index("pair_id")["orig_index"]
+    )
+    export_df = duplicates.copy()
+    export_df["duplicate_of"] = export_df["pair_id"].map(pair_to_original)
+    export_df.loc[export_df["keep"], "duplicate_of"] = pd.NA
+    return export_df
+

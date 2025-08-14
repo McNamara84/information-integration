@@ -15,7 +15,12 @@ APP_ICON: QtGui.QIcon | None = None
 from profiling import profile_dataframe, get_all_error_types
 
 from load_bibliojobs import load_bibliojobs
-from cleaning import clean_dataframe, find_fuzzy_duplicates, DEDUPLICATE_COLUMNS
+from cleaning import (
+    clean_dataframe,
+    find_fuzzy_duplicates,
+    DEDUPLICATE_COLUMNS,
+    prepare_duplicates_export,
+)
 
 
 ERROR_TYPES = [
@@ -482,9 +487,15 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
         layout.addWidget(table)
         self._table = table
 
+        button_layout = QtWidgets.QHBoxLayout()
         self._remove_button = QtWidgets.QPushButton("Dubletten entfernen", self)
         self._remove_button.clicked.connect(self._emit_selection)
-        layout.addWidget(self._remove_button)
+        button_layout.addWidget(self._remove_button)
+        button_layout.addStretch()
+        export_button = QtWidgets.QPushButton("Ergebnisse exportieren", self)
+        export_button.clicked.connect(self._export_results)
+        button_layout.addWidget(export_button)
+        layout.addLayout(button_layout)
 
         self.setCentralWidget(container)
 
@@ -526,13 +537,31 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
         self._select_all.blockSignals(False)
         self._selected_count_label.setText(f"({self._selected_count})")
 
-        
+
     def _emit_selection(self) -> None:
         indices = [
             self._checkbox_map[cb] for cb in self._checkboxes if cb.isChecked()
         ]
         self.remove_requested.emit(indices)
         self.close()
+
+    def _export_results(self) -> None:
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self,
+            "Dubletten exportieren",
+            "dubletten.csv",
+            "CSV Dateien (*.csv);;Alle Dateien (*)",
+        )
+        if not path:
+            return
+        export_df = prepare_duplicates_export(self._dataframe)
+        export_df.to_csv(path, index=False)
+        if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Export erfolgreich",
+                f"Dublettenergebnisse wurden exportiert nach:\n{path}",
+            )
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Startet die Informationsintegration-GUI")
