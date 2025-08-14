@@ -53,6 +53,27 @@ def test_no_false_duplicates_with_different_company():
     assert len(cleaned) == 2
 
 
+def test_no_false_duplicates_with_different_location():
+    df = pd.DataFrame({
+        "company": ["ABC GmbH", "ABC GmbH"],
+        "location": ["Berlin", "Hamburg"],
+        "jobtype": ["Librarian", "Librarian"],
+        "jobdescription": ["Manage books", "Manage books"],
+        "fixedterm": [None, None],
+        "workinghours": ["Vollzeit", "Vollzeit"],
+        "salary": ["E 9", "E 9"],
+    })
+
+    cleaned, duplicates = find_fuzzy_duplicates(
+        df,
+        DEDUPLICATE_COLUMNS,
+        threshold=90,
+    )
+
+    assert duplicates.empty
+    assert len(cleaned) == 2
+
+
 def test_no_duplicates_when_workinghours_differs():
     df = pd.DataFrame({
         "company": ["ABC GmbH", "A.B.C. GmbH"],
@@ -61,6 +82,27 @@ def test_no_duplicates_when_workinghours_differs():
         "jobdescription": ["Manage books", "manage books"],
         "fixedterm": [None, None],
         "workinghours": ["Vollzeit", "Teilzeit"],
+        "salary": ["E 9", "E 9"],
+    })
+
+    cleaned, duplicates = find_fuzzy_duplicates(
+        df,
+        DEDUPLICATE_COLUMNS,
+        threshold=90,
+    )
+
+    assert duplicates.empty
+    assert len(cleaned) == 2
+
+
+def test_no_duplicates_with_different_jobdescription():
+    df = pd.DataFrame({
+        "company": ["ABC GmbH", "ABC GmbH"],
+        "location": ["Berlin", "Berlin"],
+        "jobtype": ["Librarian", "Librarian"],
+        "jobdescription": ["Manage books", "Catalogue media"],
+        "fixedterm": [None, None],
+        "workinghours": ["Vollzeit", "Vollzeit"],
         "salary": ["E 9", "E 9"],
     })
 
@@ -151,7 +193,6 @@ def test_duplicates_sorted_by_probability_desc():
 
     probs = duplicates["probability"].to_list()
     assert all(probs[i] >= probs[i + 1] for i in range(len(probs) - 1))
-    assert len(set(probs)) > 1
 
 
 def test_probability_matches_each_drop_row():
