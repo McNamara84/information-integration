@@ -804,14 +804,19 @@ def find_fuzzy_duplicates(
             company_sim = fuzz.token_set_ratio(
                 str(row_i.get("company", "")), str(row_j.get("company", ""))
             )
-            jobdesc_sim = fuzz.token_set_ratio(
-                str(row_i.get("jobdescription", "")),
-                str(row_j.get("jobdescription", "")),
+            jobdesc_i = str(row_i.get("jobdescription", "")).strip().lower()
+            jobdesc_j = str(row_j.get("jobdescription", "")).strip().lower()
+            jobdesc_sim = 100 if jobdesc_i == jobdesc_j else fuzz.token_set_ratio(
+                jobdesc_i, jobdesc_j
             )
 
             company_threshold = max(80, threshold - 10)
 
-            if not (company_sim >= company_threshold and jobdesc_sim >= threshold):
+            # Job descriptions must now match exactly (ignoring case and
+            # surrounding whitespace) to avoid false positives where generic
+            # templates are used for different positions within the same
+            # location.
+            if not (company_sim >= company_threshold and jobdesc_sim == 100):
                 continue
 
             sims = [company_sim, jobdesc_sim]
