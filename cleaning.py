@@ -739,159 +739,284 @@ def clean_dataframe(
 def find_fuzzy_duplicates(
     df: pd.DataFrame,
     columns: list[str] | None = None,
-    threshold: int = 80,
+    threshold: int = 90,
     progress_callback: Callable[[float], None] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Find and remove duplicate rows using fuzzy matching on selected columns.
+    """Find and remove duplicate rows using very strict fuzzy matching.
 
-    Uses a TF-IDF vectorization with nearest-neighbor search to reduce the
-    number of pairwise comparisons. For each candidate pair the algorithm
-    applies the domain specific rules for potential duplicates:
-
-    * ``jobtype``, ``insttype``, ``country``, ``fixedterm`` and
-      ``workinghours`` must match exactly.
-    * ``jobdescription``, ``company``, ``location``, ``plz`` and ``salary``
-      must be fuzzy-matched with a minimal similarity given by ``threshold``.
-    * ``geo_lat`` and ``geo_lon`` must lie close together.  Differences up to
-      ``0.1`` degrees (roughly 10 km) are gradually penalised; scores below the
-      threshold are rejected.
-
-    The resulting similarity scores are mapped to a probability in the range
-    50--100 where 50 represents merely satisfying the minimal conditions and
-    100 denotes a perfect match of all considered attributes.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Input dataframe to search for duplicates.
-    columns : list[str] | None
-        Columns to compare for duplicates. If ``None``,
-        :data:`DEDUPLICATE_COLUMNS` is used.
-    threshold : int
-        Similarity threshold (0-100). Higher values mean stricter matching.
-    progress_callback : Callable[[float], None] | None
-        Optional callback receiving progress values from 0 to 100.
-
-    Returns
-    -------
-    tuple[pd.DataFrame, pd.DataFrame]
-        A tuple of (cleaned_dataframe, duplicates_dataframe). The
-        duplicates dataframe groups related records by a ``pair_id``. For
-        each group, one record marked with ``keep=True`` is the recommended
-        entry to retain, followed by all duplicate rows marked with
-        ``keep=False`` that should be removed.
+    This version implements much stricter criteria to minimize false positives:
+    - Higher similarity thresholds
+    - Strict salary grade matching  
+    - Company name validation
+    - Location validation
+    - Additional semantic checks
     """
-
     columns = columns or DEDUPLICATE_COLUMNS
-
-    # Create comparison keys for the TF-IDF vectoriser
-    keys = (
-        df[columns]
-        .fillna("")
-        .astype(str)
-        .agg(" ".join, axis=1)
-        .str.lower()
-    )
-
-    vectorizer = TfidfVectorizer().fit(keys)
-    matrix = vectorizer.transform(keys)
-    nn = NearestNeighbors(metric="cosine", algorithm="brute")
-    nn.fit(matrix)
-
-    n_neighbors = min(10, len(df))
-    _, indices = nn.kneighbors(matrix, n_neighbors=n_neighbors)
-
-    drop_indices: set[int] = set()
-    # Map of "keep" index -> list of tuples (drop_index, probability)
-    pairs: dict[int, list[tuple[int, int]]] = {}
-
+    
     exact_fields = {"jobtype", "insttype", "country", "fixedterm", "workinghours"}
     fuzzy_fields = {"jobdescription", "company", "location", "plz", "salary"}
     numeric_fields = {"geo_lat", "geo_lon"}
-
-    total = len(indices)
-    for i, neighbors in enumerate(indices):
-        if i in drop_indices:
+    
+    # Filter to only include columns that exist in the dataframe
+    exact_fields = {f for f in exact_fields if f in df.columns}
+    fuzzy_fields = {f for f in fuzzy_fields if f in df.columns}
+    numeric_fields = {f for f in numeric_fields if f in df.columns}
+    
+    drop_indices: set[int] = set()
+    pairs: dict[int, list[tuple[int, int]]] = {}
+    
+    # Stage 1: Group by exact match fields
+    if exact_fields:
+        exact_key_cols = list(exact_fields)
+        grouping_keys = df[exact_key_cols].fillna("").astype(str).agg("_".join, axis=1)
+        groups = df.groupby(grouping_keys).indices
+    else:
+        groups = {"all": df.index.tolist()}
+    
+    total_comparisons = sum(len(group_indices) for group_indices in groups.values())
+    processed = 0
+    
+    # Helper function to check salary compatibility
+    def are_salaries_compatible(sal1, sal2):
+        if pd.isna(sal1) or pd.isna(sal2):
+            return True
+        
+        s1, s2 = str(sal1).upper(), str(sal2).upper()
+        
+        # Extract numeric grade from salary strings
+        import re
+        def extract_grade(salary_str):
+            # Look for patterns like E9, EG9, E 9, EG 9B, etc.
+            match = re.search(r'E\s*G?\s*(\d+)\s*([A-Z]*)', salary_str)
+            if match:
+                return int(match.group(1)), match.group(2)
+            return None, None
+        
+        grade1, suffix1 = extract_grade(s1)
+        grade2, suffix2 = extract_grade(s2)
+        
+        if grade1 is not None and grade2 is not None:
+            # Grades must be identical or differ by max 1 level
+            if abs(grade1 - grade2) > 1:
+                return False
+            # If same grade, suffixes should be similar
+            if grade1 == grade2 and suffix1 != suffix2:
+                # Allow some flexibility (e.g., E9 vs E9B)
+                if not (suffix1 == "" or suffix2 == "" or 
+                       (suffix1 in suffix2) or (suffix2 in suffix1)):
+                    return False
+        
+        return True
+    
+    # Helper function to check company compatibility
+    def are_companies_compatible(comp1, comp2):
+        if pd.isna(comp1) or pd.isna(comp2):
+            return True
+        
+        c1, c2 = str(comp1).lower(), str(comp2).lower()
+        
+        # Remove common words that might vary
+        stop_words = ['gmbh', 'ag', 'ev', 'e.v.', 'bibliothek', 'stadtbibliothek', 
+                     'universitätsbibliothek', 'landesbibliothek', 'stadt', 'universität']
+        
+        for word in stop_words:
+            c1 = c1.replace(word, '')
+            c2 = c2.replace(word, '')
+        
+        # Clean whitespace
+        c1 = ' '.join(c1.split())
+        c2 = ' '.join(c2.split())
+        
+        # Must have significant overlap
+        if len(c1) > 10 and len(c2) > 10:
+            score = fuzz.token_sort_ratio(c1, c2)
+            return score >= 85
+        
+        return True
+    
+    # Helper function to check location compatibility  
+    def are_locations_compatible(loc1, loc2):
+        if pd.isna(loc1) or pd.isna(loc2):
+            return True
+        
+        l1, l2 = str(loc1).lower().strip(), str(loc2).lower().strip()
+        
+        # Exact match or very high similarity required
+        if l1 == l2:
+            return True
+        
+        score = fuzz.ratio(l1, l2)
+        return score >= 90
+    
+    # Stage 2: Within each group, apply very strict fuzzy matching
+    for group_indices in groups.values():
+        if len(group_indices) < 2:
+            processed += len(group_indices)
+            if progress_callback:
+                progress_callback((processed / total_comparisons) * 100)
             continue
-        for j in neighbors:
-            if j == i or j in drop_indices:
+        
+        group_df = df.iloc[group_indices]
+        
+        # Check pairs manually without TF-IDF for more control
+        for i in range(len(group_indices)):
+            global_i = group_indices[i]
+            
+            if global_i in drop_indices:
                 continue
-
-            row_i = df.iloc[i]
-            row_j = df.iloc[j]
-
-            if any(str(row_i.get(f)) != str(row_j.get(f)) for f in exact_fields):
-                continue
-
-            scores: list[float] = []
-            match = True
-
-            for col in fuzzy_fields:
-                if col not in df.columns:
+                
+            for j in range(i + 1, len(group_indices)):
+                global_j = group_indices[j]
+                
+                if global_j in drop_indices:
                     continue
-                val_i = row_i.get(col)
-                val_j = row_j.get(col)
-                if pd.isna(val_i) and pd.isna(val_j):
+                
+                row_i = df.iloc[global_i]
+                row_j = df.iloc[global_j]
+                
+                # Pre-checks: These must pass for any potential duplicate
+                
+                # 1. Salary compatibility check
+                if 'salary' in df.columns:
+                    if not are_salaries_compatible(row_i.get('salary'), row_j.get('salary')):
+                        continue
+                
+                # 2. Company compatibility check
+                if 'company' in df.columns:
+                    if not are_companies_compatible(row_i.get('company'), row_j.get('company')):
+                        continue
+                
+                # 3. Location compatibility check
+                if 'location' in df.columns:
+                    if not are_locations_compatible(row_i.get('location'), row_j.get('location')):
+                        continue
+                
+                # 4. Job description must be VERY similar (95%+)
+                if 'jobdescription' in df.columns:
+                    desc1 = str(row_i.get('jobdescription', '')).lower()
+                    desc2 = str(row_j.get('jobdescription', '')).lower()
+                    if len(desc1) > 10 and len(desc2) > 10:
+                        desc_score = fuzz.token_sort_ratio(desc1, desc2)
+                        if desc_score < 95:
+                            continue
+                
+                # Now apply fuzzy matching with very high standards
+                scores: list[float] = []
+                match = True
+                
+                # Check fuzzy fields with very high standards
+                for col in fuzzy_fields:
+                    if col not in df.columns:
+                        continue
+                    val_i = row_i.get(col)
+                    val_j = row_j.get(col)
+                    
+                    if pd.isna(val_i) and pd.isna(val_j):
+                        continue
+                    if pd.isna(val_i) or pd.isna(val_j):
+                        match = False
+                        break
+                    
+                    score = fuzz.token_sort_ratio(str(val_i), str(val_j))
+                    
+                    # Very high threshold for each field
+                    min_score = 95 if col == 'jobdescription' else 90
+                    if score < min_score:
+                        match = False
+                        break
+                    scores.append(score)
+                
+                if not match:
                     continue
-                if pd.isna(val_i) or pd.isna(val_j):
-                    match = False
-                    break
-                score = fuzz.token_set_ratio(str(val_i), str(val_j))
-                if score < threshold:
-                    match = False
-                    break
-                scores.append(score)
-
-            if not match:
-                continue
-
-            for col in numeric_fields:
-                if col not in df.columns:
+                
+                # Check numeric fields (geo coordinates) with tighter tolerance
+                for col in numeric_fields:
+                    if col not in df.columns:
+                        continue
+                    val_i = row_i.get(col)
+                    val_j = row_j.get(col)
+                    
+                    if pd.isna(val_i) and pd.isna(val_j):
+                        continue
+                    if pd.isna(val_i) or pd.isna(val_j):
+                        match = False
+                        break
+                    
+                    try:
+                        diff = abs(float(val_i) - float(val_j))
+                    except (ValueError, TypeError):
+                        match = False
+                        break
+                    
+                    # Very strict geographic tolerance: 0.01 degrees (~1km)
+                    max_diff = 0.01
+                    score = max(0.0, 100 * (1 - min(diff / max_diff, 1)))
+                    if score < 95:
+                        match = False
+                        break
+                    scores.append(score)
+                
+                if not match:
                     continue
-                val_i = row_i.get(col)
-                val_j = row_j.get(col)
-                if pd.isna(val_i) and pd.isna(val_j):
+                
+                # Additional final checks
+                # Check if job descriptions have substantially different key terms
+                if 'jobdescription' in df.columns:
+                    desc1 = str(row_i.get('jobdescription', '')).lower()
+                    desc2 = str(row_j.get('jobdescription', '')).lower()
+                    
+                    # Look for contradictory terms
+                    contradictory_pairs = [
+                        ('vollzeit', 'teilzeit'),
+                        ('befristet', 'unbefristet'),
+                        ('ausbildung', 'arbeitsstelle'),
+                        ('leitung', 'mitarbeiter'),
+                        ('e13', 'e9'), ('e12', 'e8'), ('e11', 'e7'), 
+                        ('e10', 'e6'), ('e9', 'e5'),  # Different pay grades
+                    ]
+                    
+                    for term1, term2 in contradictory_pairs:
+                        if (term1 in desc1 and term2 in desc2) or (term2 in desc1 and term1 in desc2):
+                            match = False
+                            break
+                
+                if not match:
                     continue
-                if pd.isna(val_i) or pd.isna(val_j):
-                    match = False
+                
+                # Calculate final probability - must be very high
+                if scores:
+                    avg_score = sum(scores) / len(scores)
+                    probability = int(avg_score)
+                else:
+                    probability = 95
+                
+                # Only accept near-perfect matches
+                if probability < 95:
+                    continue
+                
+                # Determine which record to keep
+                nonnull_i = row_i.count()
+                nonnull_j = row_j.count()
+                
+                if nonnull_i >= nonnull_j:
+                    keep_idx, drop_idx = global_i, global_j
+                else:
+                    keep_idx, drop_idx = global_j, global_i
+                
+                drop_indices.add(drop_idx)
+                pairs.setdefault(keep_idx, []).append((drop_idx, probability))
+                
+                if drop_idx == global_i:
                     break
-                try:
-                    diff = abs(float(val_i) - float(val_j))
-                except Exception:
-                    match = False
-                    break
-                score = max(0.0, 100 * (1 - min(diff / 0.1, 1)))
-                if score < threshold:
-                    match = False
-                    break
-                scores.append(score)
-
-            if not match:
-                continue
-
-            if scores:
-                avg_norm = sum((s - threshold) / (100 - threshold) for s in scores) / len(scores)
-                probability = int(50 + avg_norm * 50)
-            else:
-                probability = 50
-
-            nonnull_i = row_i.count()
-            nonnull_j = row_j.count()
-            if nonnull_i >= nonnull_j:
-                keep_idx, drop_idx = i, j
-            else:
-                keep_idx, drop_idx = j, i
-            drop_indices.add(drop_idx)
-            pairs.setdefault(keep_idx, []).append((drop_idx, probability))
-            if drop_idx == i:
-                break
-
-        if progress_callback is not None:
-            progress_callback((i + 1) / total * 100)
-
-    if progress_callback is not None:
+        
+        processed += len(group_indices)
+        if progress_callback:
+            progress_callback((processed / total_comparisons) * 100)
+    
+    if progress_callback:
         progress_callback(100)
-
+    
+    # Build result DataFrames
     duplicate_rows = []
     for pair_id, (keep_idx, drop_pairs) in enumerate(pairs.items()):
         keep_row = df.iloc[keep_idx].copy()
@@ -901,6 +1026,7 @@ def find_fuzzy_duplicates(
         keep_scores = [score for _, score in drop_pairs]
         keep_row["probability"] = max(keep_scores) if keep_scores else 100
         duplicate_rows.append(keep_row)
+        
         for drop_idx, score in drop_pairs:
             drop_row = df.iloc[drop_idx].copy()
             drop_row["keep"] = False
@@ -908,14 +1034,14 @@ def find_fuzzy_duplicates(
             drop_row["orig_index"] = drop_idx
             drop_row["probability"] = score
             duplicate_rows.append(drop_row)
-
+    
     duplicates = pd.DataFrame(duplicate_rows)
     if not duplicates.empty:
         duplicates = duplicates.sort_values(
             ["probability", "pair_id", "keep"], ascending=[False, True, False]
         )
         duplicates = duplicates.reset_index(drop=True)
-
+    
     cleaned = df.drop(index=drop_indices).reset_index(drop=True)
     return cleaned, duplicates
 
