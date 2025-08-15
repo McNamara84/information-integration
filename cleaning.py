@@ -779,11 +779,13 @@ def generate_candidate_pairs(
     corpus = df[list(fuzzy_fields)].fillna("").agg(" ".join, axis=1)
 
     try:
-        vectorizer = TfidfVectorizer()
+        vectorizer = TfidfVectorizer(
+            min_df=1, max_df=0.95, ngram_range=(1, 2)
+        )
         matrix = vectorizer.fit_transform(corpus)
 
         k = min(n_neighbors, size)
-        nn = NearestNeighbors(metric="cosine")
+        nn = NearestNeighbors(metric="cosine", algorithm="brute")
         nn.fit(matrix)
         distances, indices = nn.kneighbors(matrix, n_neighbors=k)
 
@@ -794,8 +796,13 @@ def generate_candidate_pairs(
                 if pair[0] != pair[1]:
                     pairs.add(pair)
         return pairs
-    except ValueError:
-        # Fallback: if TF-IDF fails (e.g., empty vocabulary), compare all pairs
+    except ValueError as e:
+        if "empty vocabulary" in str(e) or "After pruning, no terms remain" in str(e):
+            # Fallback: if TF-IDF fails (e.g., empty vocabulary), compare all pairs
+            return {(i, j) for i in range(size) for j in range(i + 1, size)}
+        raise
+    except Exception:
+        # On unexpected errors (e.g., MemoryError), fall back to full comparison
         return {(i, j) for i in range(size) for j in range(i + 1, size)}
 
 
