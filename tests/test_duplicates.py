@@ -11,6 +11,7 @@ from cleaning import (
     find_fuzzy_duplicates,
     prepare_duplicates_export,
     clean_dataframe,
+    generate_candidate_pairs,
 )
 from load_bibliojobs import load_bibliojobs
 
@@ -54,3 +55,20 @@ def test_prepare_duplicates_export_adds_reference(duplicates_df: pd.DataFrame) -
     dup_row = export_df[~export_df["keep"]].iloc[0]
     assert pd.isna(keep_row["duplicate_of"])
     assert dup_row["duplicate_of"] == keep_row["orig_index"]
+
+
+def test_generate_candidate_pairs_limits_comparisons() -> None:
+    data = {
+        "jobdescription": ["duplicate entry", "duplicate entry"]
+        + [f"random text {i}" for i in range(8)],
+        "jobtype": ["a"] * 10,
+        "insttype": ["b"] * 10,
+        "country": ["DE"] * 10,
+        "fixedterm": [0] * 10,
+        "workinghours": [40] * 10,
+    }
+    df = pd.DataFrame(data)
+    pairs = generate_candidate_pairs(df, {"jobdescription"})
+    # Must include the duplicate pair and be far less than full pairwise (45)
+    assert (0, 1) in pairs
+    assert len(pairs) < (len(df) * (len(df) - 1)) / 2
