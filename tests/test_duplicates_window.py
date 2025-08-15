@@ -1,28 +1,43 @@
 import os
+import sys
+from pathlib import Path
 
 import pandas as pd
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+sys.path.append(str(Path(__file__).resolve().parents[1]))
 QtWidgets = pytest.importorskip("PyQt6.QtWidgets", exc_type=ImportError)
 from start import DuplicatesWindow
+from cleaning import DEDUPLICATE_COLUMNS, find_fuzzy_duplicates, clean_dataframe
+from load_bibliojobs import load_bibliojobs
+
+CSV_PATH = "bibliojobs_raw.csv"
 
 
-def test_duplicates_window_filters_probability():
+def load_clean_subset(jobids: list[int]) -> pd.DataFrame:
+    df = load_bibliojobs(CSV_PATH)
+    subset = df[df["jobid"].isin(jobids)].reset_index(drop=True)
+    return clean_dataframe(subset)
+
+
+@pytest.fixture
+def duplicates_df() -> pd.DataFrame:
+    jobids = [12687, 13048, 13235, 13958]
+    df = load_clean_subset(jobids)
+    _, duplicates = find_fuzzy_duplicates(df, DEDUPLICATE_COLUMNS, threshold=80)
+    return duplicates
+
+
+def test_duplicates_window_filters_probability(duplicates_df: pd.DataFrame) -> None:
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
-    df = pd.DataFrame(
-        {
-            "pair_id": [1, 1, 2, 2],
-            "keep": [True, False, True, False],
-            "orig_index": [10, 11, 12, 13],
-            "probability": [100, 100, 80, 80],
-            "company": ["A", "B", "C", "D"],
-        }
+    window = DuplicatesWindow(duplicates_df)
+    expected = (
+        duplicates_df[duplicates_df["probability"] == 100]
+        .drop(columns=["probability"])
+        .reset_index(drop=True)
     )
-    window = DuplicatesWindow(df)
-    assert "probability" not in window._dataframe.columns
-    assert list(window._dataframe["company"]) == ["A", "B"]
-    assert len(window._dataframe) == 2
+    assert window._dataframe.equals(expected)
     window.close()
     app.quit()
