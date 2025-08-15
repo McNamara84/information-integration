@@ -27,9 +27,8 @@ Ein Projekt im Rahmen der Hausarbeit im 6. Fachsemester des Studiengangs **Infor
     exakt übereinstimmen.
   - Effiziente Kandidatensuche mittels TF-IDF-Vektorisierung und
     Nearest-Neighbor-Suche.
-  - Gefundene Dubletten werden entfernt, inklusive einer
-    Wahrscheinlichkeitsangabe zwischen 50 % und 100 %, und in einem eigenen
-    Fenster angezeigt.
+  - Gefundene Dubletten mit 100 % Übereinstimmung werden in einem eigenen
+    Fenster angezeigt und können dort entfernt werden.
 
 ## Schnellstart
 
