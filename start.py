@@ -564,7 +564,16 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
             (~export_df["keep"]) & (export_df["orig_index"].isin(selected))
         ]
         export_df = export_df.drop(columns=["keep", "pair_id", "orig_index"])
-        export_df.to_csv(path, index=False, sep="_§_")
+
+        # pandas' to_csv supports only single-character separators. Write the CSV
+        # using a placeholder character and replace it with the desired multi-
+        # character delimiter afterwards so that the exported file uses ``_§_``
+        # like the original data source.
+        placeholder = "\x1f"  # unit separator, unlikely to appear in data
+        csv_data = export_df.to_csv(index=False, sep=placeholder)
+        csv_data = csv_data.replace(placeholder, "_§_")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(csv_data)
         if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
             QtWidgets.QMessageBox.information(
                 self,
