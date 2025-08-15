@@ -1,7 +1,7 @@
 import html
 import re
 import time
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import pandas as pd
 from rapidfuzz import fuzz
@@ -239,7 +239,7 @@ def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series
         Tuple of (fixedterm, workinghours, salary) series.
     """
 
-    def parse_terms(value: object) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    def parse_terms(value: Any) -> tuple[Optional[str], Optional[str], Optional[str]]:
         if pd.isna(value):
             return None, None, None
 
@@ -594,7 +594,7 @@ def generate_candidate_pairs(
 
 
 def find_fuzzy_duplicates(
-    df: pd.DataFrame,
+    dataframe: pd.DataFrame,
     columns: list[str] | None = None,
     threshold: int = 90,
     progress_callback: Callable[[float], None] | None = None,
@@ -615,9 +615,9 @@ def find_fuzzy_duplicates(
     numeric_fields = {"geo_lat", "geo_lon"}
     
     # Filter to only include columns that exist in the dataframe
-    exact_fields = {f for f in exact_fields if f in df.columns}
-    fuzzy_fields = {f for f in fuzzy_fields if f in df.columns}
-    numeric_fields = {f for f in numeric_fields if f in df.columns}
+    exact_fields = {f for f in exact_fields if f in dataframe.columns}
+    fuzzy_fields = {f for f in fuzzy_fields if f in dataframe.columns}
+    numeric_fields = {f for f in numeric_fields if f in dataframe.columns}
     
     drop_indices: set[int] = set()
     pairs: dict[int, list[tuple[int, int]]] = {}
@@ -625,10 +625,10 @@ def find_fuzzy_duplicates(
     # Stage 1: Group by exact match fields
     if exact_fields:
         exact_key_cols = list(exact_fields)
-        grouping_keys = df[exact_key_cols].fillna("").astype(str).agg("_".join, axis=1)
-        groups = df.groupby(grouping_keys).indices
+        grouping_keys = dataframe[exact_key_cols].fillna("").astype(str).agg("_".join, axis=1)
+        groups = dataframe.groupby(grouping_keys).indices
     else:
-        groups = {"all": df.index.tolist()}
+        groups = {"all": dataframe.index.tolist()}
     
     total_comparisons = sum(len(group_indices) for group_indices in groups.values())
     processed = 0
@@ -641,7 +641,7 @@ def find_fuzzy_duplicates(
         s1, s2 = str(sal1).upper(), str(sal2).upper()
         
         # Extract numeric grade from salary strings
-        def extract_grade(salary_str):
+        def extract_grade(salary_str: str) -> tuple[Optional[int], Optional[str]]:
             # Look for patterns like E9, EG9, E 9, EG 9B, etc.
             match = re.search(r'E\s*G?\s*(\d+)\s*([A-Z]*)', salary_str)
             if match:
@@ -658,9 +658,10 @@ def find_fuzzy_duplicates(
             # If same grade, suffixes should be similar
             if grade1 == grade2 and suffix1 != suffix2:
                 # Allow some flexibility (e.g., E9 vs E9B)
-                if not (suffix1 == "" or suffix2 == "" or 
-                       (suffix1 in suffix2) or (suffix2 in suffix1)):
-                    return False
+                if suffix1 and suffix2:
+                    if suffix1 not in suffix2 and suffix2 not in suffix1:
+                        return False
+                # At least one suffix is empty, allow compatibility
         
         return True
     
@@ -713,7 +714,7 @@ def find_fuzzy_duplicates(
                 progress_callback((processed / total_comparisons) * 100)
             continue
 
-        group_df = df.iloc[group_indices]
+        group_df = dataframe.iloc[group_indices]
         candidate_pairs = generate_candidate_pairs(group_df, fuzzy_fields)
 
         for i, j in candidate_pairs:
@@ -723,28 +724,28 @@ def find_fuzzy_duplicates(
             if global_i in drop_indices or global_j in drop_indices:
                 continue
 
-            row_i = df.iloc[global_i]
-            row_j = df.iloc[global_j]
+            row_i = dataframe.iloc[global_i]
+            row_j = dataframe.iloc[global_j]
 
             # Pre-checks: These must pass for any potential duplicate
 
             # 1. Salary compatibility check
-            if 'salary' in df.columns:
+            if 'salary' in dataframe.columns:
                 if not are_salaries_compatible(row_i.get('salary'), row_j.get('salary')):
                     continue
 
             # 2. Company compatibility check
-            if 'company' in df.columns:
+            if 'company' in dataframe.columns:
                 if not are_companies_compatible(row_i.get('company'), row_j.get('company')):
                     continue
 
             # 3. Location compatibility check
-            if 'location' in df.columns:
+            if 'location' in dataframe.columns:
                 if not are_locations_compatible(row_i.get('location'), row_j.get('location')):
                     continue
 
             # 4. Job description must be VERY similar (95%+)
-            if 'jobdescription' in df.columns:
+            if 'jobdescription' in dataframe.columns:
                 desc1 = str(row_i.get('jobdescription', '')).lower()
                 desc2 = str(row_j.get('jobdescription', '')).lower()
                 if len(desc1) > 10 and len(desc2) > 10:
@@ -758,7 +759,7 @@ def find_fuzzy_duplicates(
 
             # Check fuzzy fields with very high standards
             for col in fuzzy_fields:
-                if col not in df.columns:
+                if col not in dataframe.columns:
                     continue
                 val_i = row_i.get(col)
                 val_j = row_j.get(col)
@@ -783,7 +784,7 @@ def find_fuzzy_duplicates(
 
             # Check numeric fields (geo coordinates) with tighter tolerance
             for col in numeric_fields:
-                if col not in df.columns:
+                if col not in dataframe.columns:
                     continue
                 val_i = row_i.get(col)
                 val_j = row_j.get(col)
@@ -813,7 +814,7 @@ def find_fuzzy_duplicates(
 
             # Additional final checks
             # Check if job descriptions have substantially different key terms
-            if 'jobdescription' in df.columns:
+            if 'jobdescription' in dataframe.columns:
                 desc1 = str(row_i.get('jobdescription', '')).lower()
                 desc2 = str(row_j.get('jobdescription', '')).lower()
 
@@ -868,7 +869,7 @@ def find_fuzzy_duplicates(
     # Build result DataFrames
     duplicate_rows = []
     for pair_id, (keep_idx, drop_pairs) in enumerate(pairs.items()):
-        keep_row = df.iloc[keep_idx].copy()
+        keep_row = dataframe.iloc[keep_idx].copy()
         keep_row["keep"] = True
         keep_row["pair_id"] = pair_id
         keep_row["orig_index"] = keep_idx
@@ -877,7 +878,7 @@ def find_fuzzy_duplicates(
         duplicate_rows.append(keep_row)
         
         for drop_idx, score in drop_pairs:
-            drop_row = df.iloc[drop_idx].copy()
+            drop_row = dataframe.iloc[drop_idx].copy()
             drop_row["keep"] = False
             drop_row["pair_id"] = pair_id
             drop_row["orig_index"] = drop_idx
@@ -891,7 +892,7 @@ def find_fuzzy_duplicates(
         )
         duplicates = duplicates.reset_index(drop=True)
     
-    cleaned = df.drop(index=drop_indices).reset_index(drop=True)
+    cleaned = dataframe.drop(index=list(drop_indices)).reset_index(drop=True)
     return cleaned, duplicates
 
 
