@@ -74,8 +74,8 @@ def apply_modern_style(app: QtWidgets.QApplication) -> None:
             padding: 6px 12px;
         }}
         QPushButton:disabled {{
-            background-color: palette(button);
-            color: palette(button-text);
+            background-color: palette(mid);
+            color: palette(buttonText);
         }}
         QProgressBar {{
             text-align: center;
