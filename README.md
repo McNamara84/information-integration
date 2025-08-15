@@ -58,7 +58,7 @@ pytest
 
 ```
 ├── assets/            # Static resources such as icons
-├── data/              # Auxiliary data files (e.g., caches)
+├── cache/             # Auxiliary cache files
 ├── cleaning.py        # Funktionen zur Bereinigung und Normalisierung
 ├── load_bibliojobs.py # CSV-Import mit individuellem Delimiter
 ├── profiling.py       # Data-Profiling und Fehlerklassifikation

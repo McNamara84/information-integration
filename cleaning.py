@@ -229,7 +229,7 @@ def get_cache_file_path() -> str:
     """Get the path for the license plate cache file."""
     return os.path.join(
         os.path.dirname(__file__),
-        "data",
+        "cache",
         "license_plate_cache.json",
     )
 
