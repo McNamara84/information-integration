@@ -556,8 +556,15 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
         )
         if not path:
             return
+        selected = [
+            self._checkbox_map[cb] for cb in self._checkboxes if cb.isChecked()
+        ]
         export_df = prepare_duplicates_export(self._dataframe)
-        export_df.to_csv(path, index=False)
+        export_df = export_df[
+            (~export_df["keep"]) & (export_df["orig_index"].isin(selected))
+        ]
+        export_df = export_df.drop(columns=["keep", "pair_id", "orig_index"])
+        export_df.to_csv(path, index=False, sep="_§_")
         if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
             QtWidgets.QMessageBox.information(
                 self,
