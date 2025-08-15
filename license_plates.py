@@ -138,13 +138,13 @@ def fetch_german_license_plates(
 ) -> Dict[str, str]:
     """Get German license plate codes, using cache first and API as fallback."""
     _status = make_status_printer(status_callback)
-    license_plate_map = load_license_plate_cache(status_callback=_status)
+    license_plate_map = load_license_plate_cache(status_callback=status_callback)
 
     if len(license_plate_map) < 10:
         _status("Kennzeichen-Cache leer oder unvollständig, lade Daten von Wikidata...")
-        api_result = fetch_german_license_plates_from_api(status_callback=_status)
+        api_result = fetch_german_license_plates_from_api(status_callback=status_callback)
         if api_result:
-            save_license_plate_cache(api_result, status_callback=_status)
+            save_license_plate_cache(api_result, status_callback=status_callback)
             return api_result
         _status(
             "Abruf der Kennzeichendaten fehlgeschlagen, verwende vorhandene Cache-Daten"
