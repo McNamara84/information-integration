@@ -77,6 +77,9 @@ def apply_modern_style(app: QtWidgets.QApplication) -> None:
             background-color: palette(button);
             color: palette(button-text);
         }}
+        QProgressBar {{
+            text-align: center;
+        }}
         QProgressBar::chunk {{
             background-color: {accent_name};
             border-radius: 3px;
@@ -169,6 +172,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setStatusBar(self._status)
         self._progress = QtWidgets.QProgressBar()
         self._progress.setRange(0, 100)
+        self._progress.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self._status.addPermanentWidget(self._progress)
         self._status.showMessage("CSV-Datei wird eingelesen...")
 
