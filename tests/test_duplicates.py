@@ -10,6 +10,7 @@ from cleaning import (
     DEDUPLICATE_COLUMNS,
     find_fuzzy_duplicates,
     prepare_duplicates_export,
+    format_export_columns,
     clean_dataframe,
     generate_candidate_pairs,
 )
@@ -55,6 +56,18 @@ def test_prepare_duplicates_export_adds_reference(duplicates_df: pd.DataFrame) -
     dup_row = export_df[~export_df["keep"]].iloc[0]
     assert pd.isna(keep_row["duplicate_of"])
     assert dup_row["duplicate_of"] == keep_row["orig_index"]
+
+
+def test_format_export_columns_applies_required_style(
+    duplicates_df: pd.DataFrame,
+) -> None:
+    export_df = prepare_duplicates_export(duplicates_df)
+    export_df = export_df[~export_df["keep"]]
+    export_df = export_df.drop(columns=["keep", "pair_id", "orig_index"])
+    original_cols = export_df.columns.tolist()
+    formatted = format_export_columns(export_df)
+    expected = [f"_{c.upper()}_" for c in original_cols]
+    assert list(formatted.columns) == expected
 
 
 def test_generate_candidate_pairs_limits_comparisons() -> None:

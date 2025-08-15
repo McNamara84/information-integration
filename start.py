@@ -20,6 +20,7 @@ from cleaning import (
     find_fuzzy_duplicates,
     DEDUPLICATE_COLUMNS,
     prepare_duplicates_export,
+    format_export_columns,
 )
 
 
@@ -601,6 +602,7 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
             (~export_df["keep"]) & (export_df["orig_index"].isin(selected))
         ]
         export_df = export_df.drop(columns=["keep", "pair_id", "orig_index"])
+        export_df = format_export_columns(export_df)
 
         # pandas' to_csv supports only single-character separators. Write the CSV
         # using a placeholder character and replace it with the desired multi-
