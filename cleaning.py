@@ -227,7 +227,11 @@ def consolidate_similar_companies(series: pd.Series, threshold: int = 85) -> pd.
 
 def get_cache_file_path() -> str:
     """Get the path for the license plate cache file."""
-    return os.path.join(os.path.dirname(__file__), 'license_plate_cache.json')
+    return os.path.join(
+        os.path.dirname(__file__),
+        "cache",
+        "license_plate_cache.json",
+    )
 
 
 def load_license_plate_cache(status_callback: Optional[Callable[[str], None]] = None) -> Dict[str, str]:
