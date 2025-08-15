@@ -1138,3 +1138,24 @@ def prepare_duplicates_export(duplicates: pd.DataFrame) -> pd.DataFrame:
     export_df.loc[export_df["keep"], "duplicate_of"] = pd.NA
     return export_df
 
+
+def format_export_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Return a copy of ``df`` with column names formatted for export.
+
+    Column labels are converted to upper case and wrapped with leading and
+    trailing underscores as required by the export specification.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        DataFrame whose columns should be formatted.
+
+    Returns
+    -------
+    pd.DataFrame
+        Copy of ``df`` with renamed columns.
+    """
+
+    renamed = {col: f"_{col.upper()}_" for col in df.columns}
+    return df.rename(columns=renamed)
+
