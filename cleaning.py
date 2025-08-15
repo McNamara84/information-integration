@@ -1,7 +1,7 @@
 import html
 import re
 import time
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 import pandas as pd
 from rapidfuzz import fuzz
@@ -239,7 +239,7 @@ def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series
         Tuple of (fixedterm, workinghours, salary) series.
     """
 
-    def parse_terms(value: object) -> tuple[Optional[str], Optional[str], Optional[str]]:
+    def parse_terms(value: Any) -> tuple[Optional[str], Optional[str], Optional[str]]:
         if pd.isna(value):
             return None, None, None
 
@@ -641,7 +641,7 @@ def find_fuzzy_duplicates(
         s1, s2 = str(sal1).upper(), str(sal2).upper()
         
         # Extract numeric grade from salary strings
-        def extract_grade(salary_str):
+        def extract_grade(salary_str: str) -> tuple[Optional[int], Optional[str]]:
             # Look for patterns like E9, EG9, E 9, EG 9B, etc.
             match = re.search(r'E\s*G?\s*(\d+)\s*([A-Z]*)', salary_str)
             if match:
@@ -658,8 +658,10 @@ def find_fuzzy_duplicates(
             # If same grade, suffixes should be similar
             if grade1 == grade2 and suffix1 != suffix2:
                 # Allow some flexibility (e.g., E9 vs E9B)
-                if not (suffix1 == "" or suffix2 == "" or 
-                       (suffix1 in suffix2) or (suffix2 in suffix1)):
+                if suffix1 and suffix2:
+                    if suffix1 not in suffix2 and suffix2 not in suffix1:
+                        return False
+                else:
                     return False
         
         return True
@@ -891,7 +893,7 @@ def find_fuzzy_duplicates(
         )
         duplicates = duplicates.reset_index(drop=True)
     
-    cleaned = df.drop(index=drop_indices).reset_index(drop=True)
+    cleaned = df.drop(index=list(drop_indices)).reset_index(drop=True)
     return cleaned, duplicates
 
 
