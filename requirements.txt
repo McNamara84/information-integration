@@ -1,7 +1,7 @@
 pandas
 numpy
 openpyxl
-fuzzywuzzy[speedup]
+rapidfuzz
 scikit-learn
 sqlalchemy
 mysqlclient
