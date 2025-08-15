@@ -571,7 +571,7 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
         # like the original data source.
         placeholder = "\x1f"  # unit separator, unlikely to appear in data
         csv_data = export_df.to_csv(
-            index=False, sep=placeholder, line_terminator="\n"
+            index=False, sep=placeholder, lineterminator="\n"
         )
         csv_data = csv_data.replace(placeholder, "_§_")
         with open(path, "w", encoding="utf-8", newline="") as f:
