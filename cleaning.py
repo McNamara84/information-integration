@@ -1,17 +1,15 @@
 import html
-import json
-import os
 import re
 import time
-from typing import Callable, Optional, Dict
-
-from collections import defaultdict
+from typing import Callable, Optional
 
 import pandas as pd
-import requests
 from rapidfuzz import fuzz
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.neighbors import NearestNeighbors
+
+from license_plates import fetch_german_license_plates, resolve_license_plates_in_series
+from utils import make_status_printer
 
 
 DEDUPLICATE_COLUMNS = [
@@ -225,214 +223,6 @@ def consolidate_similar_companies(series: pd.Series, threshold: int = 85) -> pd.
     
     return series.apply(apply_mapping)
 
-def get_cache_file_path() -> str:
-    """Get the path for the license plate cache file."""
-    return os.path.join(
-        os.path.dirname(__file__),
-        "cache",
-        "license_plate_cache.json",
-    )
-
-
-def load_license_plate_cache(status_callback: Optional[Callable[[str], None]] = None) -> Dict[str, str]:
-    """Load license plate mapping from local cache file."""
-    def _status(msg: str) -> None:
-        if status_callback:
-            status_callback(msg)
-        else:
-            print(msg)
-
-    cache_file = get_cache_file_path()
-    try:
-        if os.path.exists(cache_file):
-            with open(cache_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-    except (json.JSONDecodeError, IOError) as e:
-        _status(f"Warnung: Kennzeichen-Cache konnte nicht geladen werden: {e}")
-    return {}
-
-
-def save_license_plate_cache(
-    license_plate_map: Dict[str, str],
-    status_callback: Optional[Callable[[str], None]] = None,
-) -> None:
-    """Save license plate mapping to local cache file."""
-    def _status(msg: str) -> None:
-        if status_callback:
-            status_callback(msg)
-        else:
-            print(msg)
-
-    cache_file = get_cache_file_path()
-    try:
-        with open(cache_file, 'w', encoding='utf-8') as f:
-            json.dump(license_plate_map, f, ensure_ascii=False, indent=2)
-    except IOError as e:
-        _status(f"Warnung: Kennzeichen-Cache konnte nicht gespeichert werden: {e}")
-
-
-def fetch_german_license_plates_from_api(
-    status_callback: Optional[Callable[[str], None]] = None,
-) -> Dict[str, str]:
-    """Fetch German license plate codes from Wikidata API with retry mechanism.
-
-    Returns a dictionary mapping license plate codes to place names.
-    """
-    def _status(msg: str) -> None:
-        if status_callback:
-            status_callback(msg)
-        else:
-            print(msg)
-    sparql_query = """
-    SELECT ?item ?itemLabel ?licencePlate WHERE {
-      ?item wdt:P395 ?licencePlate .
-      ?item wdt:P17 wd:Q183 .  # Located in Germany
-      ?item wdt:P31/wdt:P279* wd:Q56061 .  # Instance of administrative territorial entity
-      SERVICE wikibase:label { bd:serviceParam wikibase:language "de,en" . }
-    }
-    """
-    
-    endpoint = "https://query.wikidata.org/sparql"
-    headers = {
-        'Accept': 'application/sparql-results+json',
-        'User-Agent': 'Bibliojobs-Data-Cleaning-Tool/1.0 (Educational Project; Contact: ehrmann@gfz.de)'
-    }
-    
-    # Retry mechanism with exponential backoff
-    max_retries = 3
-    base_delay = 2.0  # Start with 2 seconds
-    
-    for attempt in range(max_retries):
-        try:
-            # Add delay before each attempt (except the first one)
-            if attempt > 0:
-                delay = base_delay * (2 ** (attempt - 1))  # Exponential backoff
-                _status(
-                    f"Wikidata-API wird in {delay} Sekunden erneut aufgerufen... (Versuch {attempt + 1}/{max_retries})"
-                )
-                time.sleep(delay)
-            
-            response = requests.get(
-                endpoint, 
-                params={'query': sparql_query}, 
-                headers=headers,
-                timeout=45
-            )
-            
-            # Handle rate limiting specifically
-            if response.status_code == 429:
-                retry_after = response.headers.get('Retry-After')
-                if retry_after:
-                    wait_time = min(int(retry_after), 60)  # Max 1 minute wait
-                    _status(f"Von Wikidata ausgebremst. Warte {wait_time} Sekunden...")
-                    time.sleep(wait_time)
-                    continue
-                else:
-                    # If no Retry-After header, use exponential backoff
-                    continue
-            
-            response.raise_for_status()
-            
-            data = response.json()
-            license_plate_map = {}
-            
-            for binding in data.get('results', {}).get('bindings', []):
-                if 'licencePlate' in binding and 'itemLabel' in binding:
-                    plate_code = binding['licencePlate']['value']
-                    place_name = binding['itemLabel']['value']
-                    
-                    # Only add if it looks like a German license plate code (1-3 letters, uppercase)
-                    if re.match(r'^[A-Z]{1,3}$', plate_code):
-                        license_plate_map[plate_code] = place_name
-            
-            _status(
-                f"Erfolgreich {len(license_plate_map)} Kennzeichen-Zuordnungen von Wikidata geladen"
-            )
-            return license_plate_map
-            
-        except requests.exceptions.Timeout:
-            _status(f"Zeitüberschreitung bei Versuch {attempt + 1}/{max_retries}")
-            if attempt == max_retries - 1:
-                _status("Alle API-Versuche führten zu einer Zeitüberschreitung")
-        except requests.exceptions.RequestException as e:
-            _status(f"API-Fehler bei Versuch {attempt + 1}/{max_retries}: {e}")
-            if attempt == max_retries - 1:
-                _status("Alle API-Versuche sind fehlgeschlagen")
-        except (KeyError, ValueError) as e:
-            _status(f"Fehler beim Verarbeiten der Daten: {e}")
-            break  # Don't retry on parsing errors
-    
-    return {}
-
-
-def fetch_german_license_plates(status_callback: Optional[Callable[[str], None]] = None) -> Dict[str, str]:
-    """Get German license plate codes, using cache first, then API if needed.
-
-    Returns a dictionary mapping license plate codes to place names.
-    """
-
-    def _status(msg: str) -> None:
-        if status_callback:
-            status_callback(msg)
-        else:
-            print(msg)
-
-    # First, try to load from cache
-    license_plate_map = load_license_plate_cache(status_callback=_status)
-
-    # If cache is empty or very small, try to fetch from API
-    if len(license_plate_map) < 10:  # Germany has way more than 10 license plates
-        _status("Kennzeichen-Cache leer oder unvollständig, lade Daten von Wikidata...")
-        api_result = fetch_german_license_plates_from_api(status_callback=_status)
-
-        if api_result:
-            # Save to cache for future use
-            save_license_plate_cache(api_result, status_callback=_status)
-            return api_result
-        else:
-            _status("Abruf der Kennzeichendaten fehlgeschlagen, verwende vorhandene Cache-Daten")
-            return license_plate_map
-    else:
-        _status(f"Verwende zwischengespeicherte Kfz-Kennzeichen-Daten ({len(license_plate_map)} Einträge)")
-        return license_plate_map
-
-
-def resolve_license_plates_in_series(series: pd.Series, license_plate_map: Dict[str, str]) -> pd.Series:
-    """Replace license plate codes in a series with full place names.
-    
-    Only replaces values that consist entirely of a license plate code (with optional whitespace).
-    Does not replace license plate codes that are part of longer place names.
-    
-    Parameters
-    ----------
-    series:
-        The series to process
-    license_plate_map:
-        Dictionary mapping license plate codes to place names
-        
-    Returns
-    -------
-    pd.Series
-        Series with standalone license plate codes replaced by place names
-    """
-    if not license_plate_map:
-        return series
-    
-    def replace_license_plates(value):
-        if pd.isna(value):
-            return value
-        
-        value_str = str(value).strip()
-        
-        # Bugfix: Only replace if the entire value (after stripping whitespace) is a license plate code
-        # This prevents replacing "AM" in "Frankfurt am Main" while still catching "AM" by itself
-        if value_str.upper() in license_plate_map:
-            return license_plate_map[value_str.upper()]
-        
-        # Don't do partial replacements - return original value unchanged
-        return value
-    
-    return series.apply(replace_license_plates)
 
 
 def extract_jobdescription_info(series: pd.Series) -> tuple[pd.Series, pd.Series, pd.Series]:
@@ -668,11 +458,7 @@ def clean_dataframe(
         Optional function receiving status messages as ``str``.
     """
 
-    def _status(msg: str) -> None:
-        if status_callback:
-            status_callback(msg)
-        else:
-            print(msg)
+    _status = make_status_printer(status_callback)
 
     cleaned = df.copy()
     object_cols = cleaned.select_dtypes(include=["object"]).columns
