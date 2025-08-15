@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+
 import pandas as pd
 import pytest
 
@@ -9,22 +10,22 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 QtWidgets = pytest.importorskip("PyQt6.QtWidgets", exc_type=ImportError)
 from start import DuplicatesWindow
-from cleaning import DEDUPLICATE_COLUMNS, find_fuzzy_duplicates
+from cleaning import DEDUPLICATE_COLUMNS, find_fuzzy_duplicates, clean_dataframe
+from load_bibliojobs import load_bibliojobs
 
 CSV_PATH = "bibliojobs_raw.csv"
-SEP = "_§_"
 
-def load_raw() -> pd.DataFrame:
-    df = pd.read_csv(CSV_PATH, sep=SEP, engine="python")
-    df.columns = [c.strip("_").lower() for c in df.columns]
-    for col in ["plz", "fixedterm", "workinghours", "salary"]:
-        df[col] = pd.NA
-    return df
+
+def load_clean_subset(jobids: list[int]) -> pd.DataFrame:
+    df = load_bibliojobs(CSV_PATH)
+    subset = df[df["jobid"].isin(jobids)].reset_index(drop=True)
+    return clean_dataframe(subset)
 
 
 @pytest.fixture
 def duplicates_df() -> pd.DataFrame:
-    df = load_raw().head(700)
+    jobids = [12687, 13048, 13235, 13958]
+    df = load_clean_subset(jobids)
     _, duplicates = find_fuzzy_duplicates(df, DEDUPLICATE_COLUMNS, threshold=80)
     return duplicates
 
