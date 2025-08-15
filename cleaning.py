@@ -784,7 +784,6 @@ def find_fuzzy_duplicates(
         s1, s2 = str(sal1).upper(), str(sal2).upper()
         
         # Extract numeric grade from salary strings
-        import re
         def extract_grade(salary_str):
             # Look for patterns like E9, EG9, E 9, EG 9B, etc.
             match = re.search(r'E\s*G?\s*(\d+)\s*([A-Z]*)', salary_str)
