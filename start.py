@@ -52,6 +52,42 @@ def _require(value: T | None, name: str) -> T:
     return value
 
 
+def apply_modern_style(app: QtWidgets.QApplication) -> None:
+    """Apply a Windows 11 inspired style using Qt 6.9 features."""
+    app.setStyle("Fusion")
+    app.setFont(QtGui.QFont("Segoe UI", 10))
+
+    palette = app.palette()
+    accent = palette.color(QtGui.QPalette.ColorRole.Accent)
+    palette.setColor(QtGui.QPalette.ColorRole.Highlight, accent)
+    palette.setColor(QtGui.QPalette.ColorRole.Button, accent)
+    palette.setColor(QtGui.QPalette.ColorRole.ButtonText, QtGui.QColor("white"))
+    app.setPalette(palette)
+
+    accent_name = accent.name()
+    app.setStyleSheet(
+        f"""
+        QPushButton {{
+            background-color: {accent_name};
+            color: white;
+            border-radius: 6px;
+            padding: 6px 12px;
+        }}
+        QPushButton:disabled {{
+            background-color: palette(mid);
+            color: palette(buttonText);
+        }}
+        QProgressBar {{
+            text-align: center;
+        }}
+        QProgressBar::chunk {{
+            background-color: {accent_name};
+            border-radius: 3px;
+        }}
+        """
+    )
+
+
 class LoadWorker(QtCore.QObject):
     finished = QtCore.pyqtSignal(object)
     progress = QtCore.pyqtSignal(int)
@@ -136,6 +172,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setStatusBar(self._status)
         self._progress = QtWidgets.QProgressBar()
         self._progress.setRange(0, 100)
+        self._progress.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
         self._status.addPermanentWidget(self._progress)
         self._status.showMessage("CSV-Datei wird eingelesen...")
 
@@ -594,7 +631,7 @@ def main() -> None:
     args = parser.parse_args()
 
     app = QtWidgets.QApplication(sys.argv)
-    app.setStyle("Fusion")
+    apply_modern_style(app)
 
     # Initialize the application icon after QApplication is created
     global APP_ICON
