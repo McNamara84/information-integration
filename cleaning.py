@@ -662,7 +662,8 @@ def find_fuzzy_duplicates(
                     if suffix1 not in suffix2 and suffix2 not in suffix1:
                         return False
                 else:
-                    return False
+                    # At least one suffix is empty, allow compatibility
+                    pass
         
         return True
     
