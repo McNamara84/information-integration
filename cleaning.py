@@ -792,9 +792,10 @@ def generate_candidate_pairs(
         pairs: set[tuple[int, int]] = set()
         for i, neighbors in enumerate(indices):
             for j in neighbors[1:]:  # Skip self
-                pair = tuple(sorted((i, j)))
-                if pair[0] != pair[1]:
-                    pairs.add(pair)
+                if i < j:
+                    pairs.add((i, j))
+                elif j < i:
+                    pairs.add((j, i))
         return pairs
     except ValueError as e:
         if "empty vocabulary" in str(e) or "After pruning, no terms remain" in str(e):
