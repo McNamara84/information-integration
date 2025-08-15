@@ -570,9 +570,11 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
         # character delimiter afterwards so that the exported file uses ``_§_``
         # like the original data source.
         placeholder = "\x1f"  # unit separator, unlikely to appear in data
-        csv_data = export_df.to_csv(index=False, sep=placeholder)
+        csv_data = export_df.to_csv(
+            index=False, sep=placeholder, line_terminator="\n"
+        )
         csv_data = csv_data.replace(placeholder, "_§_")
-        with open(path, "w", encoding="utf-8") as f:
+        with open(path, "w", encoding="utf-8", newline="") as f:
             f.write(csv_data)
         if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
             QtWidgets.QMessageBox.information(
