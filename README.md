@@ -14,7 +14,7 @@ Ein Projekt im Rahmen der Hausarbeit im 6. Fachsemester des Studiengangs **Infor
   - Normalisiert Spaltennamen, konvertiert Datentypen und unterstützt einen Fortschrittsrückruf.
 - **Datenbereinigung**
   - Dekodiert HTML-Entitäten, entfernt Tags und extrahiert Postleitzahlen aus Firmennamen in eine eigene Spalte.
-  - Ersetzt Kfz-Kennzeichen durch vollständige Ortsnamen (Wikidata API + Cache).
+  - Ersetzt Kfz-Kennzeichen durch vollständige Ortsnamen (Wikidata API über `requests` mit lokalem Cache).
   - Standardisiert Firmennamen und bereinigt kryptische Werte.
   - Extrahiert Angaben zu Befristung, Arbeitszeit und Vergütung aus dem Attribut `jobdescription` in separate Spalten.
 - **Data Profiling & Reporting**
@@ -22,11 +22,11 @@ Ein Projekt im Rahmen der Hausarbeit im 6. Fachsemester des Studiengangs **Infor
   - Export von Bereinigungen und Fehlerberichten als Excel-Datei.
 - **Dublettenerkennung**
   - Fuzzy-Matching über "jobdescription", "company", "location", "plz" und
-    "salary" sowie geographische Koordinaten.
+    "salary" (RapidFuzz) sowie geographische Koordinaten.
   - "jobtype", "insttype", "country", "fixedterm" und "workinghours" müssen
     exakt übereinstimmen.
   - Effiziente Kandidatensuche mittels TF-IDF-Vektorisierung und
-    Nearest-Neighbor-Suche.
+    Nearest-Neighbor-Suche (scikit-learn).
   - Gefundene Dubletten mit 100 % Übereinstimmung werden in einem eigenen
     Fenster angezeigt und können dort entfernt werden.
 
