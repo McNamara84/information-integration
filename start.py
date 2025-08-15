@@ -8,7 +8,7 @@ from typing import cast, TypeVar
 import pandas as pd
 from PyQt6 import QtCore, QtWidgets, QtGui
 
-ICON_PATH = os.path.join(os.path.dirname(__file__), "fh_potsdam_logo.svg")
+ICON_PATH = os.path.join(os.path.dirname(__file__), "assets", "potsdam_university_logo.svg")
 # Will be initialized after QApplication creation in main()
 APP_ICON: QtGui.QIcon | None = None
 
