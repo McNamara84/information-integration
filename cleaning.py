@@ -9,7 +9,7 @@ from collections import defaultdict
 
 import pandas as pd
 import requests
-from fuzzywuzzy import fuzz
+from rapidfuzz import fuzz
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.neighbors import NearestNeighbors
 
@@ -197,7 +197,7 @@ def consolidate_similar_companies(series: pd.Series, threshold: int = 85) -> pd.
                 continue
                 
             # Use fuzzy matching to compare names
-            similarity = fuzz.ratio(str(value1).lower(), str(value2).lower())
+            similarity = int(fuzz.ratio(str(value1).lower(), str(value2).lower()))
             
             if similarity >= threshold:
                 group.append(value2)
@@ -832,7 +832,7 @@ def find_fuzzy_duplicates(
         
         # Must have significant overlap
         if len(c1) > 10 and len(c2) > 10:
-            score = fuzz.token_sort_ratio(c1, c2)
+            score = int(fuzz.token_sort_ratio(c1, c2))
             return score >= 85
         
         return True
@@ -848,7 +848,7 @@ def find_fuzzy_duplicates(
         if l1 == l2:
             return True
         
-        score = fuzz.ratio(l1, l2)
+        score = int(fuzz.ratio(l1, l2))
         return score >= 90
     
     # Stage 2: Within each group, apply very strict fuzzy matching
@@ -899,7 +899,7 @@ def find_fuzzy_duplicates(
                     desc1 = str(row_i.get('jobdescription', '')).lower()
                     desc2 = str(row_j.get('jobdescription', '')).lower()
                     if len(desc1) > 10 and len(desc2) > 10:
-                        desc_score = fuzz.token_sort_ratio(desc1, desc2)
+                        desc_score = int(fuzz.token_sort_ratio(desc1, desc2))
                         if desc_score < 95:
                             continue
                 
@@ -920,7 +920,7 @@ def find_fuzzy_duplicates(
                         match = False
                         break
                     
-                    score = fuzz.token_sort_ratio(str(val_i), str(val_j))
+                    score = int(fuzz.token_sort_ratio(str(val_i), str(val_j)))
                     
                     # Very high threshold for each field
                     min_score = 95 if col == 'jobdescription' else 90
