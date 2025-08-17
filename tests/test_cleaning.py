@@ -288,3 +288,21 @@ def test_integration_clean_dataframe_real_api():
     
     # At least "Frankfurt" should remain unchanged
     assert "Frankfurt" in cleaned_location
+
+
+def test_region_enrichment_fuzzy():
+    """Ensure fuzzy region matching enriches locations with minor variations."""
+    with patch('cleaning.fetch_german_license_plates') as mock_fetch:
+        mock_fetch.return_value = {}
+
+        df = pd.DataFrame({"location": ["Berlin", "Münchenn", "Hamburg"]})
+        mapping = pd.DataFrame(
+            {"location": ["Berlin", "München"], "region": ["Berlin", "Bayern"]}
+        )
+
+        cleaned = clean_dataframe(df, region_mapping=mapping)
+
+        assert cleaned.loc[0, "region"] == "Berlin"  # exact match
+        assert cleaned.loc[1, "region"] == "Bayern"  # fuzzy match
+        assert pd.isna(cleaned.loc[2, "region"])  # no match
+
