@@ -153,74 +153,97 @@ def clean_company_field(series: pd.Series) -> pd.Series:
     # First pass: clean individual entries
     cleaned_series = series.apply(clean_single_company)
     
-    # Second pass: consolidate similar entries using fuzzy matching
+    # Second pass: consolidate similar entries using vector similarity
     cleaned_series = consolidate_similar_companies(cleaned_series)
     
     return cleaned_series
 
 
-def consolidate_similar_companies(series: pd.Series, threshold: int = 85) -> pd.Series:
-    """Consolidate similar company names using fuzzy string matching.
-    
+def consolidate_similar_companies(
+    series: pd.Series,
+    threshold: int = 85,
+    min_occurrence: int = 2,
+) -> pd.Series:
+    """Consolidate similar company names using a vectorised similarity search.
+
+    This replaces the previous pairwise nested loop with a TF-IDF based approach
+    that finds near-duplicate names via a radius search in vector space. A
+    frequency threshold can be supplied to skip very rare names up front and
+    thereby reduce the number of comparisons.
+
     Parameters
     ----------
     series : pd.Series
         Series with cleaned company names
     threshold : int
         Similarity threshold (0-100) for considering names as duplicates
-        
+    min_occurrence : int, optional
+        Minimum number of occurrences of a name for it to participate in the
+        similarity check. Higher values reduce the number of comparisons.
+        Default is ``2`` so that names occurring only once are skipped.
+
     Returns
     -------
     pd.Series
         Series with consolidated company names
     """
-    
-    # Get unique values and their counts
+
     value_counts = series.value_counts()
-    unique_values = value_counts.index.tolist()
-    
-    # Group similar values
-    groups = []
-    used = set()
-    
-    for i, value1 in enumerate(unique_values):
-        if value1 in used or pd.isna(value1):
+
+    # Restrict to names that occur at least ``min_occurrence`` times to reduce
+    # the number of vectors and comparisons.
+    candidates = [str(name) for name in value_counts[value_counts >= min_occurrence].index]
+    if len(candidates) < 2:
+        return series
+
+    # Vectorise company names as character 3-grams to capture structural
+    # similarity.  A radius neighbour search then finds only those names with a
+    # cosine similarity above the requested threshold.
+    vectorizer = TfidfVectorizer(analyzer="char", ngram_range=(3, 3))
+    tfidf_matrix = vectorizer.fit_transform(candidates)
+
+    radius = 1 - threshold / 100  # cosine distance equivalent of the threshold
+    nn = NearestNeighbors(metric="cosine", algorithm="brute")
+    nn.fit(tfidf_matrix)
+    _, indices = nn.radius_neighbors(tfidf_matrix, radius=radius)
+
+    groups: list[list[str]] = []
+    used: set[str] = set()
+
+    for i, neighbors in enumerate(indices):
+        name_i = candidates[i]
+        if name_i in used or pd.isna(name_i):
             continue
-            
-        group = [value1]
-        used.add(value1)
-        
-        for j, value2 in enumerate(unique_values[i+1:], i+1):
-            if value2 in used or pd.isna(value2):
+
+        group = {name_i}
+        used.add(name_i)
+
+        for j in neighbors:
+            if i == j:
                 continue
-                
-            # Use fuzzy matching to compare names
-            similarity = int(fuzz.ratio(str(value1).lower(), str(value2).lower()))
-            
-            if similarity >= threshold:
-                group.append(value2)
-                used.add(value2)
-        
+            name_j = candidates[j]
+            if name_j in used or pd.isna(name_j):
+                continue
+            group.add(name_j)
+            used.add(name_j)
+
         if len(group) > 1:
-            groups.append(group)
-    
-    # Create mapping from similar names to the most frequent one
-    name_mapping = {}
+            groups.append(list(group))
+
+    # Map grouped names to the most frequent canonical name
+    name_mapping: dict[str, str] = {}
     for group in groups:
-        # Choose the most frequent name as canonical
         group_counts = [(name, value_counts[name]) for name in group]
         group_counts.sort(key=lambda x: (-x[1], len(x[0])))  # Most frequent, then shortest
         canonical = group_counts[0][0]
-        
         for name in group:
             name_mapping[name] = canonical
-    
-    # Apply mapping
-    def apply_mapping(value):
+
+    def apply_mapping(value: Any) -> Any:
         if pd.isna(value):
             return value
         return name_mapping.get(value, value)
-    
+
     return series.apply(apply_mapping)
 
 
