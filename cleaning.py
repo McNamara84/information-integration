@@ -9,7 +9,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.neighbors import NearestNeighbors
 
 from license_plates import fetch_german_license_plates, resolve_license_plates_in_series
-from region_mapper import match_region_fuzzy
+from region_mapper import match_region_fuzzy, load_region_mapping
 from utils import make_status_printer
 
 
@@ -546,9 +546,15 @@ def clean_dataframe(
         cleaned['workinghours'] = workinghours
         cleaned['salary'] = salary
 
-    # Enrich with region information if mapping provided
+    # Enrich with region information
+    if region_mapping is None and 'location' in cleaned.columns:
+        try:
+            region_mapping = load_region_mapping()
+        except FileNotFoundError:
+            region_mapping = None
+
     if region_mapping is not None and 'location' in cleaned.columns:
-        region_map = region_mapping.set_index('location')['region']
+        region_map = region_mapping.drop_duplicates('location').set_index('location')['region']
         cleaned['region'] = cleaned['location'].map(region_map)
         missing_mask = cleaned['region'].isna() & cleaned['location'].notna()
         if missing_mask.any():
