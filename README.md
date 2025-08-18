@@ -54,6 +54,15 @@ python start.py path/zur/bibliojobs_raw.csv
 pytest
 ```
 
+## LaTeX-Dokument
+
+Die schriftliche Ausarbeitung dieses Projekts befindet sich in `main.tex`.
+Sie kann mit `latexmk` oder einem vergleichbaren Werkzeug kompiliert werden:
+
+```bash
+latexmk -pdf main.tex
+```
+
 ## Projektstruktur
 
 ```
