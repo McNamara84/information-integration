@@ -15,6 +15,7 @@ Ein Projekt im Rahmen der Hausarbeit im 6. Fachsemester des Studiengangs **Infor
 - **Datenbereinigung**
   - Dekodiert HTML-Entitäten, entfernt Tags und extrahiert Postleitzahlen aus Firmennamen in eine eigene Spalte.
   - Ersetzt Kfz-Kennzeichen durch vollständige Ortsnamen (Wikidata API über `requests` mit lokalem Cache).
+  - Ordnet Orte den Bundesländern zu und erweitert den Datensatz um die Spalte `region` (Mapping aus `ort_bundesland.sql`).
   - Standardisiert Firmennamen und bereinigt kryptische Werte.
   - Extrahiert Angaben zu Befristung, Arbeitszeit und Vergütung aus dem Attribut `jobdescription` in separate Spalten.
 - **Data Profiling & Reporting**
@@ -52,6 +53,15 @@ python start.py path/zur/bibliojobs_raw.csv
 
 ```bash
 pytest
+```
+
+## LaTeX-Dokument
+
+Die schriftliche Ausarbeitung dieses Projekts befindet sich in `main.tex`.
+Sie kann mit `latexmk` oder einem vergleichbaren Werkzeug kompiliert werden:
+
+```bash
+latexmk -pdf main.tex
 ```
 
 ## Projektstruktur
