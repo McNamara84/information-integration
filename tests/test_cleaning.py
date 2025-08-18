@@ -220,6 +220,26 @@ def test_clean_dataframe_without_location_column():
         assert cleaned["other"].iloc[2] == "AT&T"
 
 
+def test_clean_dataframe_location_from_company():
+    """Locations resembling company names should be replaced by cities from company field."""
+    with patch('cleaning.fetch_german_license_plates') as mock_fetch:
+        mock_fetch.return_value = {}
+
+        df = pd.DataFrame(
+            {
+                "company": [
+                    "Stadt Münster, 48127 Münster",
+                    "Stadtbücherei Frankfurt, 60311 Frankfurt am Main",
+                ],
+                "location": ["Bischöfliches Generalvikariat", "MVB GmbH"],
+            }
+        )
+
+        cleaned = clean_dataframe(df)
+
+        assert cleaned["location"].tolist() == ["Münster", "Frankfurt am Main"]
+
+
 def test_extract_jobdescription_info():
     df = pd.DataFrame(
         {

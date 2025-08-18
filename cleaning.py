@@ -28,8 +28,10 @@ DEDUPLICATE_COLUMNS = [
     "salary",
 ]
 
-def extract_plz_from_company(series: pd.Series) -> tuple[pd.Series, pd.Series]:
-    """Extract postal codes from company names and return cleaned company names and PLZ.
+def extract_plz_from_company(
+    series: pd.Series,
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """Extract postal codes and cities from company names.
     
     Parameters
     ----------
@@ -38,45 +40,58 @@ def extract_plz_from_company(series: pd.Series) -> tuple[pd.Series, pd.Series]:
         
     Returns
     -------
-    tuple[pd.Series, pd.Series]
-        Tuple of (cleaned_company_names, extracted_plz)
+    tuple[pd.Series, pd.Series, pd.Series]
+        Tuple of ``(cleaned_company_names, extracted_plz, extracted_city)``
     """
-    
-    def extract_plz_and_clean(value):
+
+    def extract_plz_city_and_clean(value):
         if pd.isna(value):
-            return value, None
-        
+            return value, None, None
+
         value_str = str(value).strip()
         extracted_plz = None
-        
-        # Extract German postal codes (5 digits) with optional city
-        # Patterns: ", 12345 Stadt" or ", 12345" at end of string
-        plz_pattern = r',\s*(\d{5})(?:\s+[A-ZÄÖÜ][a-zäöüß\s-]+)?$'
-        match = re.search(plz_pattern, value_str, flags=re.IGNORECASE)
-        
+        extracted_city = None
+
+        # Pattern: ", 12345 Stadt" at end of string
+        plz_city_comma = r',\s*(\d{5})\s+([A-ZÄÖÜ][a-zäöüß\s-]+)$'
+        match = re.search(plz_city_comma, value_str, flags=re.IGNORECASE)
         if match:
             extracted_plz = match.group(1)
-            # Remove the entire PLZ+city part from company name
-            value_str = re.sub(plz_pattern, '', value_str, flags=re.IGNORECASE)
+            extracted_city = match.group(2).strip()
+            value_str = re.sub(plz_city_comma, '', value_str, flags=re.IGNORECASE)
         else:
-            # Try to find PLZ without comma (less common but happens)
-            # Pattern: " 12345 Stadt" or " 12345" at end, but be careful not to match job IDs etc.
-            plz_pattern_no_comma = r'\s+(\d{5})\s+[A-ZÄÖÜ][a-zäöüß\s-]+$'
-            match = re.search(plz_pattern_no_comma, value_str, flags=re.IGNORECASE)
+            # Pattern: " 12345 Stadt" without comma
+            plz_city_no_comma = r'\s+(\d{5})\s+([A-ZÄÖÜ][a-zäöüß\s-]+)$'
+            match = re.search(plz_city_no_comma, value_str, flags=re.IGNORECASE)
             if match:
                 extracted_plz = match.group(1)
-                value_str = re.sub(plz_pattern_no_comma, '', value_str, flags=re.IGNORECASE)
-        
-        return value_str.strip(), extracted_plz
-    
+                extracted_city = match.group(2).strip()
+                value_str = re.sub(plz_city_no_comma, '', value_str, flags=re.IGNORECASE)
+            else:
+                # Pattern: ", 12345" or " 12345" (PLZ only)
+                plz_only_comma = r',\s*(\d{5})$'
+                match = re.search(plz_only_comma, value_str)
+                if match:
+                    extracted_plz = match.group(1)
+                    value_str = re.sub(plz_only_comma, '', value_str)
+                else:
+                    plz_only_no_comma = r'\s+(\d{5})$'
+                    match = re.search(plz_only_no_comma, value_str)
+                    if match:
+                        extracted_plz = match.group(1)
+                        value_str = re.sub(plz_only_no_comma, '', value_str)
+
+        return value_str.strip(), extracted_plz, extracted_city
+
     # Apply extraction to all values
-    results = series.apply(extract_plz_and_clean)
-    
-    # Separate company names and PLZ
+    results = series.apply(extract_plz_city_and_clean)
+
+    # Separate company names, PLZ, and city
     company_names = pd.Series([result[0] for result in results], index=series.index)
     plz_codes = pd.Series([result[1] for result in results], index=series.index)
-    
-    return company_names, plz_codes
+    city_names = pd.Series([result[2] for result in results], index=series.index)
+
+    return company_names, plz_codes, city_names
 
 
 def clean_company_field(series: pd.Series) -> pd.Series:
@@ -503,7 +518,7 @@ def clean_dataframe(
             progress_callback(10.0)  # Additional 5% for PLZ extraction
 
         _status("Extrahiere Postleitzahlen aus Firmennamen...")
-        company_cleaned, plz_extracted = extract_plz_from_company(cleaned['company'])
+        company_cleaned, plz_extracted, city_extracted = extract_plz_from_company(cleaned['company'])
         cleaned['company'] = company_cleaned
 
         # Add PLZ column (or update if it already exists)
@@ -512,6 +527,17 @@ def clean_dataframe(
         else:
             # If PLZ column exists, only fill empty values
             cleaned['plz'] = cleaned['plz'].fillna(plz_extracted)
+
+        # Use extracted city to correct location if needed
+        if 'location' in cleaned.columns:
+            company_like = r'\b(?:gmbh|mbh|ag|kg|gbr|e\.v\.|generalvikariat)\b'
+            mask = (
+                cleaned['location'].isna()
+                | cleaned['location'].str.contains(company_like, case=False, na=True)
+            ) & city_extracted.notna()
+            cleaned.loc[mask, 'location'] = city_extracted[mask]
+        else:
+            cleaned['location'] = city_extracted
 
         _status(f"PLZ extrahiert: {plz_extracted.notna().sum()} Einträge gefunden")
     
