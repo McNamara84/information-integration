@@ -34,12 +34,19 @@ def test_fetch_german_license_plates_real_api():
         found_common = any(plate in license_plates for plate in common_plates)
         assert found_common, f"Expected at least one common plate, got: {list(license_plates.keys())[:10]}"
         
-        # Verify format: all keys should be uppercase letters, 1-3 chars
+        # Verify format: keys should be uppercase letters and represent 1-3 characters
+        # after normalizing ASCII umlaut sequences (AE/OE/UE -> Ä/Ö/Ü)
         for plate_code in license_plates.keys():
             assert isinstance(plate_code, str)
             assert plate_code.isupper()
-            assert 1 <= len(plate_code) <= 3
             assert plate_code.isalpha()
+            normalized_code = (
+                plate_code
+                .replace("AE", "Ä")
+                .replace("OE", "Ö")
+                .replace("UE", "Ü")
+            )
+            assert 1 <= len(normalized_code) <= 3
         
         # Verify values are non-empty strings
         for place_name in license_plates.values():
