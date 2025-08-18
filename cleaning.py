@@ -9,6 +9,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.neighbors import NearestNeighbors
 
 from license_plates import fetch_german_license_plates, resolve_license_plates_in_series
+from region_mapper import match_region_fuzzy, load_region_mapping
 from utils import make_status_printer
 
 
@@ -466,6 +467,7 @@ def clean_dataframe(
     df: pd.DataFrame,
     progress_callback: Optional[Callable[[float], None]] = None,
     status_callback: Optional[Callable[[str], None]] = None,
+    region_mapping: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
     """Return a cleaned copy of *df* with HTML entities decoded, tags removed,
     license plates resolved, company names standardized, and PLZ extracted to separate column.
@@ -543,6 +545,22 @@ def clean_dataframe(
         cleaned['fixedterm'] = fixedterm
         cleaned['workinghours'] = workinghours
         cleaned['salary'] = salary
+
+    # Enrich with region information
+    if region_mapping is None and 'location' in cleaned.columns:
+        try:
+            region_mapping = load_region_mapping()
+        except FileNotFoundError:
+            region_mapping = None
+
+    if region_mapping is not None and 'location' in cleaned.columns:
+        region_map = region_mapping.drop_duplicates('location').set_index('location')['region']
+        cleaned['region'] = cleaned['location'].map(region_map)
+        missing_mask = cleaned['region'].isna() & cleaned['location'].notna()
+        if missing_mask.any():
+            cleaned.loc[missing_mask, 'region'] = cleaned.loc[missing_mask, 'location'].apply(
+                lambda loc: match_region_fuzzy(loc, region_mapping)
+            )
 
     if progress_callback:
         progress_callback(100.0)
