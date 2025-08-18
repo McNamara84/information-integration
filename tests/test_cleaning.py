@@ -34,17 +34,38 @@ def test_fetch_german_license_plates_real_api():
         found_common = any(plate in license_plates for plate in common_plates)
         assert found_common, f"Expected at least one common plate, got: {list(license_plates.keys())[:10]}"
         
-        # Verify format: all keys should be uppercase letters, 1-3 chars
+        # Verify format: keys should be uppercase letters and represent 1-3 characters
+        # after normalizing ASCII umlaut sequences (AE/OE/UE -> Ä/Ö/Ü)
         for plate_code in license_plates.keys():
             assert isinstance(plate_code, str)
             assert plate_code.isupper()
-            assert 1 <= len(plate_code) <= 3
             assert plate_code.isalpha()
+            normalized_code = (
+                plate_code
+                .replace("AE", "Ä")
+                .replace("OE", "Ö")
+                .replace("UE", "Ü")
+            )
+            assert 1 <= len(normalized_code) <= 3
         
         # Verify values are non-empty strings
         for place_name in license_plates.values():
             assert isinstance(place_name, str)
             assert len(place_name) > 0
+
+
+def test_fetch_german_license_plates_contains_umlauts():
+    """Ensure umlaut license plates are resolved from cache/API."""
+    license_plates = fetch_german_license_plates()
+    assert license_plates.get("WÜ") == "Würzburg"
+    assert license_plates.get("FÜ") == "Fürth"
+
+
+def test_clean_dataframe_resolves_umlaut_license_plates():
+    """Location cleaning should replace license plates with umlauts."""
+    df = pd.DataFrame({"location": ["WÜ", "FÜ", None]})
+    cleaned = clean_dataframe(df)
+    assert cleaned["location"].tolist() == ["Würzburg", "Fürth", None]
 
 def test_resolve_license_plates_in_series():
     """Test license plate resolution in pandas series."""
