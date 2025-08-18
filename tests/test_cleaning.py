@@ -46,6 +46,20 @@ def test_fetch_german_license_plates_real_api():
             assert isinstance(place_name, str)
             assert len(place_name) > 0
 
+
+def test_fetch_german_license_plates_contains_umlauts():
+    """Ensure umlaut license plates are resolved from cache/API."""
+    license_plates = fetch_german_license_plates()
+    assert license_plates.get("WÜ") == "Würzburg"
+    assert license_plates.get("FÜ") == "Fürth"
+
+
+def test_clean_dataframe_resolves_umlaut_license_plates():
+    """Location cleaning should replace license plates with umlauts."""
+    df = pd.DataFrame({"location": ["WÜ", "FÜ", None]})
+    cleaned = clean_dataframe(df)
+    assert cleaned["location"].tolist() == ["Würzburg", "Fürth", None]
+
 def test_resolve_license_plates_in_series():
     """Test license plate resolution in pandas series."""
     license_plate_map = {

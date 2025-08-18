@@ -110,8 +110,18 @@ def fetch_german_license_plates_from_api(
                 if "licencePlate" in binding and "itemLabel" in binding:
                     plate_code = binding["licencePlate"]["value"]
                     place_name = binding["itemLabel"]["value"]
-                    if re.match(r"^[A-Z]{1,3}$", plate_code):
+                    # Allow German umlauts in plate codes
+                    if re.match(r"^[A-ZÄÖÜ]{1,3}$", plate_code):
                         license_plate_map[plate_code] = place_name
+                        # Also store ASCII fallback (e.g. WUE for WÜ)
+                        ascii_plate = (
+                            plate_code
+                            .replace("Ä", "AE")
+                            .replace("Ö", "OE")
+                            .replace("Ü", "UE")
+                        )
+                        if ascii_plate != plate_code:
+                            license_plate_map[ascii_plate] = place_name
 
             _status(
                 f"Erfolgreich {len(license_plate_map)} Kennzeichen-Zuordnungen von Wikidata geladen"
