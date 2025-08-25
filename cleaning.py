@@ -503,105 +503,112 @@ def clean_dataframe(
     cleaned = df.copy()
     object_cols = cleaned.select_dtypes(include=["object"]).columns
     total = len(object_cols)
+    current_progress = 0.0
+
+    def _progress(value: float) -> None:
+        nonlocal current_progress
+        current_progress = value
+        if progress_callback:
+            progress_callback(current_progress)
 
     # Fetch license plate mapping once at the beginning
-    license_plate_map = {}
-    if 'location' in cleaned.columns:
-        if progress_callback:
-            progress_callback(5.0)  # 5% for fetching license plates
+    license_plate_map: dict[str, str] = {}
+    if "location" in cleaned.columns:
+        _status("Lade Kfz-Kennzeichen...")
         license_plate_map = fetch_german_license_plates(status_callback)
-        time.sleep(0.1)
+    _progress(10.0)
 
     # Extract PLZ from company field before other processing
-    if 'company' in cleaned.columns:
-        if progress_callback:
-            progress_callback(10.0)  # Additional 5% for PLZ extraction
-
+    if "company" in cleaned.columns:
         _status("Extrahiere Postleitzahlen aus Firmennamen...")
-        company_cleaned, plz_extracted, city_extracted = extract_plz_from_company(cleaned['company'])
-        cleaned['company'] = company_cleaned
+        company_cleaned, plz_extracted, city_extracted = extract_plz_from_company(
+            cleaned["company"]
+        )
+        cleaned["company"] = company_cleaned
 
         # Add PLZ column (or update if it already exists)
-        if 'plz' not in cleaned.columns:
-            cleaned['plz'] = plz_extracted
+        if "plz" not in cleaned.columns:
+            cleaned["plz"] = plz_extracted
         else:
             # If PLZ column exists, only fill empty values
-            cleaned['plz'] = cleaned['plz'].fillna(plz_extracted)
+            cleaned["plz"] = cleaned["plz"].fillna(plz_extracted)
 
         # Use extracted city to correct location if needed
-        if 'location' in cleaned.columns:
-            company_like = r'\b(?:gmbh|mbh|ag|kg|gbr|e\.v\.|generalvikariat)\b'
+        if "location" in cleaned.columns:
+            company_like = r"\b(?:gmbh|mbh|ag|kg|gbr|e\.v\.|generalvikariat)\b"
             mask = (
-                cleaned['location'].isna()
-                | cleaned['location'].str.contains(company_like, case=False, na=True)
+                cleaned["location"].isna()
+                | cleaned["location"].str.contains(company_like, case=False, na=True)
             ) & city_extracted.notna()
-            cleaned.loc[mask, 'location'] = city_extracted[mask]
-        else:
-            if city_extracted.notna().any():
-                cleaned['location'] = city_extracted
+            cleaned.loc[mask, "location"] = city_extracted[mask]
+        elif city_extracted.notna().any():
+            cleaned["location"] = city_extracted
 
         _status(f"PLZ extrahiert: {plz_extracted.notna().sum()} Einträge gefunden")
-    
+    _progress(20.0)
+
     for idx, col in enumerate(object_cols, start=1):
+        _status(f"Bereinige Spalte '{col}'...")
+
         # HTML cleaning (original functionality)
         cleaned[col] = cleaned[col].apply(
-            lambda x: html.unescape(re.sub(r"<.*?>", "", str(x)))
-            if pd.notna(x)
-            else x
+            lambda x: html.unescape(re.sub(r"<.*?>", "", str(x))) if pd.notna(x) else x
         )
-        
+
         # License plate resolution for location column
-        if col == 'location' and license_plate_map:
+        if col == "location" and license_plate_map:
+            _status("Ersetze Kfz-Kennzeichen durch Städtenamen...")
             cleaned[col] = resolve_license_plates_in_series(cleaned[col], license_plate_map)
-        
+
         # Company name cleaning and standardization (after PLZ extraction)
-        if col == 'company':
-            if progress_callback:
-                progress = 15.0 + (idx / total * 75.0)  # Show progress for company cleaning
-                progress_callback(progress)
+        if col == "company":
             _status("Bereinige und standardisiere Firmennamen...")
             cleaned[col] = clean_company_field(cleaned[col])
-        
-        if progress_callback and total:
-            # Reserve 10% for license plates + PLZ, use remaining 90% for processing
-            progress = 10.0 + (idx / total * 90.0)
-            progress_callback(progress)
 
-    if 'jobdescription' in cleaned.columns:
-        fixedterm, workinghours, salary = extract_jobdescription_info(cleaned['jobdescription'])
-        cleaned['fixedterm'] = fixedterm
-        cleaned['workinghours'] = workinghours
-        cleaned['salary'] = salary
+        if total:
+            # Reserve 60% for column processing
+            _progress(20.0 + (idx / total * 60.0))
+
+    if "jobdescription" in cleaned.columns:
+        _status("Extrahiere Angaben aus Stellenbeschreibungen...")
+        fixedterm, workinghours, salary = extract_jobdescription_info(cleaned["jobdescription"])
+        cleaned["fixedterm"] = fixedterm
+        cleaned["workinghours"] = workinghours
+        cleaned["salary"] = salary
+    _progress(90.0)
 
     # Enrich with region information
-    if region_mapping is None and 'location' in cleaned.columns:
+    if region_mapping is None and "location" in cleaned.columns:
+        _status("Lade Regionszuordnung...")
         try:
             region_mapping = load_region_mapping()
         except FileNotFoundError:
             region_mapping = None
 
-    if region_mapping is not None and 'location' in cleaned.columns:
-        region_map = region_mapping.drop_duplicates('location').set_index('location')['region']
-        cleaned['region'] = cleaned['location'].map(region_map)
-        missing_mask = cleaned['region'].isna() & cleaned['location'].notna()
+    if region_mapping is not None and "location" in cleaned.columns:
+        _status("Bestimme Regionen...")
+        region_map = region_mapping.drop_duplicates("location").set_index("location")["region"]
+        cleaned["region"] = cleaned["location"].map(region_map)
+        missing_mask = cleaned["region"].isna() & cleaned["location"].notna()
         if missing_mask.any():
-            cleaned.loc[missing_mask, 'region'] = cleaned.loc[missing_mask, 'location'].apply(
+            cleaned.loc[missing_mask, "region"] = cleaned.loc[missing_mask, "location"].apply(
                 lambda loc: match_region_fuzzy(loc, region_mapping)
             )
-        if 'geo_lat' in cleaned.columns and 'geo_lon' in cleaned.columns:
+        if "geo_lat" in cleaned.columns and "geo_lon" in cleaned.columns:
             coord_mask = (
-                cleaned['region'].isna()
-                & cleaned['geo_lat'].notna()
-                & cleaned['geo_lon'].notna()
+                cleaned["region"].isna()
+                & cleaned["geo_lat"].notna()
+                & cleaned["geo_lon"].notna()
             )
             if coord_mask.any():
-                cleaned.loc[coord_mask, 'region'] = cleaned.loc[coord_mask, ['geo_lat', 'geo_lon']].apply(
-                    lambda row: region_from_coordinates(row['geo_lat'], row['geo_lon']),
+                cleaned.loc[coord_mask, "region"] = cleaned.loc[
+                    coord_mask, ["geo_lat", "geo_lon"]
+                ].apply(
+                    lambda row: region_from_coordinates(row["geo_lat"], row["geo_lon"]),
                     axis=1,
                 )
 
-    if progress_callback:
-        progress_callback(100.0)
+    _progress(100.0)
     return cleaned
 
 
