@@ -6,6 +6,32 @@ from typing import Optional
 import pandas as pd
 from rapidfuzz import process
 
+
+@lru_cache()
+def region_from_coordinates(lat: float, lon: float) -> Optional[str]:
+    """Return German federal state for given ``lat`` and ``lon``.
+
+    Uses the offline :mod:`reverse_geocoder` dataset to map coordinates to the
+    nearest settlement and extracts the ``admin1`` field which corresponds to
+    the Bundesland. Only results within Germany (``cc == 'DE'``) are returned;
+    otherwise ``None`` is yielded. Results are cached to avoid repeated lookups
+    for the same coordinate pair.
+    """
+
+    if pd.isna(lat) or pd.isna(lon):
+        return None
+    try:
+        import reverse_geocoder as rg  # type: ignore
+
+        result = rg.search((float(lat), float(lon)), mode=1)
+    except Exception:
+        return None
+
+    if result and result[0].get("cc") == "DE":
+        return result[0].get("admin1")
+
+    return None
+
 def match_region_fuzzy(location: str, mapping: pd.DataFrame, threshold: int = 90) -> Optional[str]:
     """Return region name for *location* using fuzzy matching.
 

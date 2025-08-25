@@ -372,3 +372,20 @@ def test_region_enrichment_fuzzy():
         assert cleaned.loc[1, "region"] == "Bayern"  # fuzzy match
         assert pd.isna(cleaned.loc[2, "region"])  # no match
 
+
+def test_region_enrichment_coordinates():
+    """Coordinates should resolve to German federal states when names fail."""
+    with patch('cleaning.fetch_german_license_plates') as mock_fetch:
+        mock_fetch.return_value = {}
+
+        df = pd.DataFrame({
+            "jobid": [19065],
+            "location": ["Uckerland"],
+            "geo_lat": [53.5264244],
+            "geo_lon": [13.8020306],
+        })
+
+        cleaned = clean_dataframe(df)
+
+        assert cleaned.loc[0, "region"] == "Mecklenburg-Vorpommern"
+

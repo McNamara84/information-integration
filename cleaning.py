@@ -9,7 +9,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.neighbors import NearestNeighbors
 
 from license_plates import fetch_german_license_plates, resolve_license_plates_in_series
-from region_mapper import match_region_fuzzy, load_region_mapping
+from region_mapper import match_region_fuzzy, load_region_mapping, region_from_coordinates
 from utils import make_status_printer
 
 
@@ -588,6 +588,17 @@ def clean_dataframe(
             cleaned.loc[missing_mask, 'region'] = cleaned.loc[missing_mask, 'location'].apply(
                 lambda loc: match_region_fuzzy(loc, region_mapping)
             )
+        if 'geo_lat' in cleaned.columns and 'geo_lon' in cleaned.columns:
+            coord_mask = (
+                cleaned['region'].isna()
+                & cleaned['geo_lat'].notna()
+                & cleaned['geo_lon'].notna()
+            )
+            if coord_mask.any():
+                cleaned.loc[coord_mask, 'region'] = cleaned.loc[coord_mask, ['geo_lat', 'geo_lon']].apply(
+                    lambda row: region_from_coordinates(row['geo_lat'], row['geo_lon']),
+                    axis=1,
+                )
 
     if progress_callback:
         progress_callback(100.0)
