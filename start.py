@@ -5,6 +5,7 @@ import os
 import sys
 import threading
 import webbrowser
+import socket
 from typing import cast, TypeVar
 
 import pandas as pd
@@ -55,6 +56,13 @@ def _require(value: T | None, name: str) -> T:
     if value is None:
         raise RuntimeError(f"{name} is unexpectedly None")
     return value
+
+
+def _find_free_port() -> int:
+    """Return an available port on localhost."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
 
 
 def apply_modern_style(app: QtWidgets.QApplication) -> None:
@@ -357,14 +365,18 @@ class MainWindow(QtWidgets.QMainWindow):
             "password": settings.value("db/password", ""),
             "dbname": settings.value("db/dbname", "bibliojobs_dw"),
         }
+        port = _find_free_port()
 
         def run() -> None:
             from dashboard import create_app
             app = create_app(info)
-            app.run(port=5000, use_reloader=False)
+            try:
+                app.run(host="127.0.0.1", port=port, use_reloader=False)
+            except OSError as exc:
+                print(f"Webserver konnte nicht gestartet werden: {exc}")
 
         threading.Thread(target=run, daemon=True).start()
-        webbrowser.open("http://127.0.0.1:5000/")
+        webbrowser.open(f"http://127.0.0.1:{port}/")
 
     def _remove_duplicates(self) -> None:
         if self._dedupe_thread and self._dedupe_thread.isRunning():
