@@ -64,6 +64,10 @@ python start.py path/zur/bibliojobs_raw.csv
 pytest
 ```
 
+## ER-Diagramm
+
+![ER-Diagramm des Data Warehouses](er-diagram.png)
+
 ## LaTeX-Dokument
 
 Die schriftliche Ausarbeitung dieses Projekts befindet sich in `main.tex`.
