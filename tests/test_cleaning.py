@@ -318,8 +318,8 @@ def test_clean_dataframe_progress_callback():
         
         # Should have progress calls
         assert len(progress_calls) > 0
-        # First call should be 5% (for license plate fetching)
-        assert progress_calls[0] == 5.0
+        # First call should be 10% (after initial setup)
+        assert progress_calls[0] == 10.0
         # Last call should be 100%
         assert progress_calls[-1] == 100.0
         # All calls should be between 0 and 100
