@@ -33,8 +33,9 @@ Ein Projekt im Rahmen der Hausarbeit im 6. Fachsemester des Studiengangs **Infor
     Fenster angezeigt und können dort entfernt werden.
 - **Data-Warehouse-Initialisierung**
   - Nach dem Entfernen von Dubletten wird ein Button "Datenbank initialisieren" eingeblendet.
-  - Ein Dialog fragt Verbindungsdaten ab und legt in PostgreSQL ein Sternschema mit
-    Dimensionstabellen für Unternehmen, Orte und Jobtypen sowie einer Faktentabelle an.
+  - Ein Dialog fragt Verbindungsdaten inklusive numerischem Port ab und legt in
+    PostgreSQL ein Sternschema mit Dimensionstabellen für Unternehmen, Orte und
+    Jobtypen sowie einer Faktentabelle an.
   - Der bereinigte Datensatz wird in dieses Data Warehouse importiert.
 
 ## Schnellstart

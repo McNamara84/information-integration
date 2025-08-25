@@ -660,14 +660,14 @@ class DataWarehouseWindow(QtWidgets.QDialog):
         form.addRow(self._create_button)
 
     def _create(self) -> None:
-        info = {
-            "host": self._host.text(),
-            "port": self._port.text(),
-            "user": self._user.text(),
-            "password": self._password.text(),
-            "dbname": self._dbname.text(),
-        }
         try:
+            info: dict[str, str | int] = {
+                "host": self._host.text(),
+                "port": int(self._port.text()),
+                "user": self._user.text(),
+                "password": self._password.text(),
+                "dbname": self._dbname.text(),
+            }
             create_data_warehouse(self._dataframe, info)
             if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
                 QtWidgets.QMessageBox.information(
