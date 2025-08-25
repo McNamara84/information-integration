@@ -7,6 +7,7 @@ from typing import cast, TypeVar
 
 import pandas as pd
 from PyQt6 import QtCore, QtWidgets, QtGui
+import psycopg2
 
 ICON_PATH = os.path.join(os.path.dirname(__file__), "assets", "fhp_logo.svg")
 # Will be initialized after QApplication creation in main()
@@ -668,12 +669,23 @@ class DataWarehouseWindow(QtWidgets.QDialog):
                 "password": self._password.text(),
                 "dbname": self._dbname.text(),
             }
+        except ValueError:
+            QtWidgets.QMessageBox.critical(self, "Fehler", "Port muss eine Zahl sein")
+            return
+        try:
             create_data_warehouse(self._dataframe, info)
             if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
                 QtWidgets.QMessageBox.information(
                     self, "Erfolg", "Data Warehouse wurde erstellt"
                 )
             self.accept()
+        except psycopg2.OperationalError as exc:  # pragma: no cover - UI only
+            QtWidgets.QMessageBox.critical(
+                self,
+                "Verbindungsfehler",
+                "Verbindung zur Datenbank fehlgeschlagen. Bitte prüfen Sie, ob der PostgreSQL-Server läuft und die Zugangsdaten korrekt sind.\n"
+                + str(exc),
+            )
         except Exception as exc:  # pragma: no cover - UI only
             QtWidgets.QMessageBox.critical(self, "Fehler", str(exc))
 

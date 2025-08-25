@@ -119,6 +119,8 @@ Nach Abschluss der Bereinigung wird der Button \glqq Dubletten finden\grqq{} fre
 
 Nachdem mindestens eine Dublette entfernt wurde, blendet die Anwendung einen weiteren Button \glqq Datenbank initialisieren\grqq{} ein. Ein Dialog fragt die Verbindungsdaten inklusive numerischem Port ab und legt auf einem PostgreSQL-Server ein Data Warehouse nach Sternschema an. Dabei entstehen Dimensionstabellen für Unternehmen, Orte und Jobtypen sowie die Faktentabelle \texttt{fact\_job}, die mit dem bereinigten, dublettenfreien Datensatz gefüllt werden.
 
+Voraussetzung ist ein laufender PostgreSQL-Server auf dem angegebenen Host und Port. Ist keine Verbindung möglich, weist eine Fehlermeldung auf das Problem hin.
+
 Zur Benennung der Fehlertypen wurde die Klassifikation von Naumann und Leser genutzt, die in den folgenden beiden Abschnitten beschrieben werden.
 
 \section{Fehler auf Schemaebene}
