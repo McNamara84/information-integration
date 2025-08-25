@@ -220,6 +220,31 @@ def test_clean_dataframe_without_location_column():
         assert cleaned["other"].iloc[2] == "AT&T"
 
 
+def test_clean_dataframe_no_location_column_no_city():
+    """No extracted city should avoid creating a new location column."""
+    with patch('cleaning.fetch_german_license_plates') as mock_fetch:
+        df = pd.DataFrame({"company": ["Example Corp", "Another Inc"]})
+
+        cleaned = clean_dataframe(df)
+
+        mock_fetch.assert_not_called()
+        assert "location" not in cleaned.columns
+
+
+def test_clean_dataframe_create_location_from_company():
+    """City extracted from company should create location column."""
+    with patch('cleaning.fetch_german_license_plates') as mock_fetch:
+        mock_fetch.return_value = {}
+
+        df = pd.DataFrame({
+            "company": ["Stadt Münster, 48127 Münster", "Example Corp"]
+        })
+
+        cleaned = clean_dataframe(df)
+
+        assert cleaned["location"].tolist() == ["Münster", None]
+
+
 def test_clean_dataframe_location_from_company():
     """Locations resembling company names should be replaced by cities from company field."""
     with patch('cleaning.fetch_german_license_plates') as mock_fetch:
