@@ -31,6 +31,14 @@ Ein Projekt im Rahmen der Hausarbeit im 6. Fachsemester des Studiengangs **Infor
     Nearest-Neighbor-Suche (scikit-learn).
   - Gefundene Dubletten mit 100 % Übereinstimmung werden in einem eigenen
     Fenster angezeigt und können dort entfernt werden.
+- **Data-Warehouse-Initialisierung**
+  - Nach dem Entfernen von Dubletten wird ein Button "Datenbank initialisieren" eingeblendet.
+  - Ein Dialog fragt Verbindungsdaten inklusive numerischem Port ab und legt in
+    PostgreSQL ein Sternschema mit Dimensionstabellen für Unternehmen, Orte und
+    Jobtypen sowie einer Faktentabelle an.
+  - Der bereinigte Datensatz wird in dieses Data Warehouse importiert.
+  - Ein Ladebalken mit Statusmeldungen zeigt den Fortschritt des Imports an, da der Vorgang etwas Zeit in Anspruch nehmen kann.
+  - Ein laufender PostgreSQL-Server auf dem angegebenen Host und Port ist Voraussetzung; bei Verbindungsproblemen erscheint ein Hinweis mit der Ursache.
 
 ## Schnellstart
 
@@ -71,9 +79,10 @@ latexmk -pdf main.tex
 ├── assets/            # Static resources such as icons
 ├── cache/             # Auxiliary cache files
 ├── cleaning.py        # Funktionen zur Bereinigung und Normalisierung
+├── data_warehouse.py  # Aufbau eines PostgreSQL-Data-Warehouses
 ├── load_bibliojobs.py # CSV-Import mit individuellem Delimiter
 ├── profiling.py       # Data-Profiling und Fehlerklassifikation
-├── start.py           # PyQt6-GUI für Profiling, Bereinigung und Export
+├── start.py           # PyQt6-GUI für Profiling, Bereinigung, Export und DW
 └── tests/             # Unit- und Integrationstests
 ```
 
