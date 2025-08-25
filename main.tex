@@ -117,6 +117,8 @@ Während der Bereinigung informiert eine Fortschrittsleiste über den Status der
 
 Nach Abschluss der Bereinigung wird der Button \glqq Dubletten finden\grqq{} freigeschaltet. Die Dublettensuche kombiniert ein Fuzzy-Matching über \texttt{jobdescription}, \texttt{company}, \texttt{location}, \texttt{plz}, \texttt{salary} sowie die geographischen Koordinaten mit exakten Vergleichen der Felder \texttt{jobtype}, \texttt{insttype}, \texttt{country}, \texttt{fixedterm} und \texttt{workinghours}. Kandidaten werden mittels TF-IDF-Vektorisierung und Nearest-Neighbor-Suche ermittelt; Duplikate werden nur bei einer Übereinstimmung von 100\,\% tabellarisch in einem separaten Fenster \glqq Gefundene Dubletten\grqq{} dargestellt.
 
+Nachdem mindestens eine Dublette entfernt wurde, blendet die Anwendung einen weiteren Button \glqq Datenbank initialisieren\grqq{} ein. Ein Dialog fragt die Verbindungsdaten ab und legt auf einem PostgreSQL-Server ein Data Warehouse nach Sternschema an. Dabei entstehen Dimensionstabellen für Unternehmen, Orte und Jobtypen sowie die Faktentabelle \texttt{fact\_job}, die mit dem bereinigten, dublettenfreien Datensatz gefüllt werden.
+
 Zur Benennung der Fehlertypen wurde die Klassifikation von Naumann und Leser genutzt, die in den folgenden beiden Abschnitten beschrieben werden.
 
 \section{Fehler auf Schemaebene}
