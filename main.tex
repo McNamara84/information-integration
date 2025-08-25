@@ -21,6 +21,7 @@
 \usepackage{setspace}
 \usepackage[hidelinks]{hyperref}
 \usepackage{csquotes}
+\usepackage{graphicx}
 \usepackage{svg}
 \usepackage[backend=biber,style=authoryear,language=german]{biblatex}
 \addbibresource{refs/refs.bib}
@@ -120,6 +121,13 @@ Nach Abschluss der Bereinigung wird der Button \glqq Dubletten finden\grqq{} fre
 Nachdem mindestens eine Dublette entfernt wurde, blendet die Anwendung einen weiteren Button \glqq Datenbank initialisieren\grqq{} ein. Ein Dialog fragt die Verbindungsdaten inklusive numerischem Port ab und legt auf einem PostgreSQL-Server ein Data Warehouse nach Sternschema an. Dabei entstehen Dimensionstabellen für Unternehmen, Orte und Jobtypen sowie die Faktentabelle \texttt{fact\_job}, die mit dem bereinigten, dublettenfreien Datensatz gefüllt werden. Während des Imports informiert ein Ladebalken mit Statusmeldungen über die aktuellen Schritte, da der Vorgang einige Zeit in Anspruch nehmen kann.
 
 Voraussetzung ist ein laufender PostgreSQL-Server auf dem angegebenen Host und Port. Ist keine Verbindung möglich, weist eine Fehlermeldung auf das Problem hin.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{er-diagram.png}
+    \caption{ER-Diagramm des Data Warehouses}
+    \label{fig:er-diagram}
+\end{figure}
 
 Zur Benennung der Fehlertypen wurde die Klassifikation von Naumann und Leser genutzt, die in den folgenden beiden Abschnitten beschrieben werden.
 
