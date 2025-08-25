@@ -22,6 +22,7 @@ from cleaning import (
     prepare_duplicates_export,
     format_export_columns,
 )
+from data_warehouse import create_data_warehouse
 
 
 ERROR_TYPES = [
@@ -202,6 +203,10 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(self._dedupe_button)
         layout.addStretch()
         layout.addWidget(self._export_cleaned_button)
+        self._init_db_button = QtWidgets.QPushButton("Datenbank initialisieren")
+        self._init_db_button.hide()
+        self._init_db_button.clicked.connect(self._init_database)
+        layout.addWidget(self._init_db_button)
         self.setCentralWidget(container)
 
         self._worker = LoadWorker(path)
@@ -293,6 +298,10 @@ class MainWindow(QtWidgets.QMainWindow):
             )
 
 
+    def _init_database(self) -> None:
+        window = DataWarehouseWindow(self._dataframe, self)
+        window.exec()
+
     def _remove_duplicates(self) -> None:
         if self._dedupe_thread and self._dedupe_thread.isRunning():
             self._status.showMessage("Dublettenprüfung läuft bereits", 5000)
@@ -337,6 +346,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if indices:
             self._dataframe = self._dataframe.drop(index=indices).reset_index(drop=True)
             self._status.showMessage(f"{len(indices)} Dubletten entfernt", 5000)
+            self._init_db_button.show()
 
 class ProfileWindow(QtWidgets.QMainWindow):
     closed = QtCore.pyqtSignal()
@@ -621,6 +631,51 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
                 "Export erfolgreich",
                 f"Dublettenergebnisse wurden exportiert nach:\n{path}",
             )
+
+
+class DataWarehouseWindow(QtWidgets.QDialog):
+    def __init__(self, dataframe, parent=None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Datenbank initialisieren")
+        if APP_ICON is not None:
+            self.setWindowIcon(APP_ICON)
+        self._dataframe = dataframe
+
+        form = QtWidgets.QFormLayout(self)
+        self._host = QtWidgets.QLineEdit("localhost", self)
+        self._port = QtWidgets.QLineEdit("5432", self)
+        self._user = QtWidgets.QLineEdit(self)
+        self._password = QtWidgets.QLineEdit(self)
+        self._password.setEchoMode(QtWidgets.QLineEdit.EchoMode.Password)
+        self._dbname = QtWidgets.QLineEdit("bibliojobs_dw", self)
+
+        form.addRow("Host", self._host)
+        form.addRow("Port", self._port)
+        form.addRow("Benutzer", self._user)
+        form.addRow("Passwort", self._password)
+        form.addRow("Datenbankname", self._dbname)
+
+        self._create_button = QtWidgets.QPushButton("Data Warehouse erstellen", self)
+        self._create_button.clicked.connect(self._create)
+        form.addRow(self._create_button)
+
+    def _create(self) -> None:
+        info = {
+            "host": self._host.text(),
+            "port": self._port.text(),
+            "user": self._user.text(),
+            "password": self._password.text(),
+            "dbname": self._dbname.text(),
+        }
+        try:
+            create_data_warehouse(self._dataframe, info)
+            if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+                QtWidgets.QMessageBox.information(
+                    self, "Erfolg", "Data Warehouse wurde erstellt"
+                )
+            self.accept()
+        except Exception as exc:  # pragma: no cover - UI only
+            QtWidgets.QMessageBox.critical(self, "Fehler", str(exc))
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Startet die Informationsintegration-GUI")
