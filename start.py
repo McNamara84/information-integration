@@ -687,6 +687,9 @@ class DataWarehouseWindow(QtWidgets.QDialog):
         self._password.setEchoMode(QtWidgets.QLineEdit.EchoMode.Password)
         self._dbname = QtWidgets.QLineEdit("bibliojobs_dw", self)
 
+        self._settings = QtCore.QSettings("fh-potsdam", "information-integration")
+        self._load_settings()
+
         form.addRow("Host", self._host)
         form.addRow("Port", self._port)
         form.addRow("Benutzer", self._user)
@@ -720,6 +723,8 @@ class DataWarehouseWindow(QtWidgets.QDialog):
             QtWidgets.QMessageBox.critical(self, "Fehler", "Port muss eine Zahl sein")
             return
 
+        self._save_settings(info)
+
         self._create_button.setEnabled(False)
         self._status.show()
         self._progress.show()
@@ -751,6 +756,21 @@ class DataWarehouseWindow(QtWidgets.QDialog):
     def _on_error(self, message: str) -> None:  # pragma: no cover - UI only
         QtWidgets.QMessageBox.critical(self, "Fehler", message)
         self._create_button.setEnabled(True)
+
+    def _load_settings(self) -> None:
+        self._host.setText(self._settings.value("db/host", self._host.text()))
+        self._port.setText(str(self._settings.value("db/port", self._port.text())))
+        self._user.setText(self._settings.value("db/user", ""))
+        self._password.setText(self._settings.value("db/password", ""))
+        self._dbname.setText(self._settings.value("db/dbname", self._dbname.text()))
+
+    def _save_settings(self, info: dict[str, str | int]) -> None:
+        self._settings.setValue("db/host", info["host"])
+        self._settings.setValue("db/port", str(info["port"]))
+        self._settings.setValue("db/user", info["user"])
+        self._settings.setValue("db/password", info["password"])
+        self._settings.setValue("db/dbname", info["dbname"])
+        self._settings.sync()
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Startet die Informationsintegration-GUI")
