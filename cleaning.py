@@ -537,7 +537,8 @@ def clean_dataframe(
             ) & city_extracted.notna()
             cleaned.loc[mask, 'location'] = city_extracted[mask]
         else:
-            cleaned['location'] = city_extracted
+            if city_extracted.notna().any():
+                cleaned['location'] = city_extracted
 
         _status(f"PLZ extrahiert: {plz_extracted.notna().sum()} Einträge gefunden")
     
