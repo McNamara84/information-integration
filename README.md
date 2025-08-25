@@ -37,6 +37,7 @@ Ein Projekt im Rahmen der Hausarbeit im 6. Fachsemester des Studiengangs **Infor
     PostgreSQL ein Sternschema mit Dimensionstabellen für Unternehmen, Orte und
     Jobtypen sowie einer Faktentabelle an.
   - Der bereinigte Datensatz wird in dieses Data Warehouse importiert.
+  - Ein Ladebalken mit Statusmeldungen zeigt den Fortschritt des Imports an, da der Vorgang etwas Zeit in Anspruch nehmen kann.
   - Ein laufender PostgreSQL-Server auf dem angegebenen Host und Port ist Voraussetzung; bei Verbindungsproblemen erscheint ein Hinweis mit der Ursache.
 
 ## Schnellstart

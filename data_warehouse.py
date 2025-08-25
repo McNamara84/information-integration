@@ -1,11 +1,16 @@
-from typing import Dict
+from typing import Dict, Callable, Optional
 
 import pandas as pd
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 
-def create_data_warehouse(df: pd.DataFrame, conn_info: Dict[str, str | int]) -> None:
+def create_data_warehouse(
+    df: pd.DataFrame,
+    conn_info: Dict[str, str | int],
+    progress_callback: Optional[Callable[[float], None]] = None,
+    status_callback: Optional[Callable[[str], None]] = None,
+) -> None:
     """Create a simple star-schema data warehouse from *df*.
 
     Parameters
@@ -15,6 +20,10 @@ def create_data_warehouse(df: pd.DataFrame, conn_info: Dict[str, str | int]) -> 
     conn_info : dict
         Dictionary containing connection parameters ``host``, ``port``,
         ``user``, ``password`` and ``dbname``.
+    progress_callback : callable, optional
+        Function receiving progress percentage as ``float``.
+    status_callback : callable, optional
+        Function receiving human-readable status messages.
     """
     host = conn_info.get("host", "localhost")
     port = int(conn_info.get("port", 5432))
@@ -22,7 +31,16 @@ def create_data_warehouse(df: pd.DataFrame, conn_info: Dict[str, str | int]) -> 
     password = conn_info.get("password", "")
     dbname = conn_info.get("dbname", "datawarehouse")
 
-    # Connect to default database to create the warehouse database
+    def _progress(value: float) -> None:
+        if progress_callback:
+            progress_callback(value)
+
+    def _status(message: str) -> None:
+        if status_callback:
+            status_callback(message)
+
+    _status("Erstelle Datenbank ...")
+    _progress(0.0)
     admin_conn = psycopg2.connect(host=host, port=port, user=user, password=password, dbname="postgres")
     admin_conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
     admin_cur = admin_conn.cursor()
@@ -30,10 +48,16 @@ def create_data_warehouse(df: pd.DataFrame, conn_info: Dict[str, str | int]) -> 
     admin_cur.execute(f"CREATE DATABASE {dbname}")
     admin_cur.close()
     admin_conn.close()
+    _progress(5.0)
+
+    _status("Verbinde zur neuen Datenbank ...")
 
     # Connect to the newly created database
     conn = psycopg2.connect(host=host, port=port, user=user, password=password, dbname=dbname)
     cur = conn.cursor()
+    _progress(10.0)
+
+    _status("Erstelle Tabellen ...")
 
     # Create dimension tables
     cur.execute(
@@ -81,19 +105,32 @@ def create_data_warehouse(df: pd.DataFrame, conn_info: Dict[str, str | int]) -> 
         )
         """
     )
+    _progress(20.0)
 
     # Populate dimension tables
     company_df = df[["company", "insttype"]].drop_duplicates().reset_index(drop=True)
+    location_df = df[["location", "country", "geo_lat", "geo_lon", "plz"]].drop_duplicates().reset_index(drop=True)
+    jobtype_df = df[["jobtype"]].drop_duplicates().reset_index(drop=True)
+    total_rows = len(company_df) + len(location_df) + len(jobtype_df) + len(df)
+    processed = 0
+
+    def _update_progress() -> None:
+        if total_rows:
+            _progress(20.0 + processed / total_rows * 80.0)
+
+    _status("Fülle Unternehmen ...")
     for _, row in company_df.iterrows():
         cur.execute(
             "INSERT INTO dim_company (company, insttype) VALUES (%s, %s)",
             (row.get("company"), row.get("insttype")),
         )
+        processed += 1
+        _update_progress()
     conn.commit()
     cur.execute("SELECT company_id, company, insttype FROM dim_company")
     company_map = {(r[1], r[2]): r[0] for r in cur.fetchall()}
 
-    location_df = df[["location", "country", "geo_lat", "geo_lon", "plz"]].drop_duplicates().reset_index(drop=True)
+    _status("Fülle Orte ...")
     for _, row in location_df.iterrows():
         cur.execute(
             """INSERT INTO dim_location (location, country, geo_lat, geo_lon, plz)
@@ -106,23 +143,27 @@ def create_data_warehouse(df: pd.DataFrame, conn_info: Dict[str, str | int]) -> 
                 row.get("plz"),
             ),
         )
+        processed += 1
+        _update_progress()
     conn.commit()
     cur.execute(
         "SELECT location_id, location, country, geo_lat, geo_lon, plz FROM dim_location"
     )
     location_map = {(r[1], r[2], r[3], r[4], r[5]): r[0] for r in cur.fetchall()}
 
-    jobtype_df = df[["jobtype"]].drop_duplicates().reset_index(drop=True)
+    _status("Fülle Jobtypen ...")
     for _, row in jobtype_df.iterrows():
         cur.execute(
             "INSERT INTO dim_jobtype (jobtype) VALUES (%s)",
             (row.get("jobtype"),),
         )
+        processed += 1
+        _update_progress()
     conn.commit()
     cur.execute("SELECT jobtype_id, jobtype FROM dim_jobtype")
     jobtype_map = {r[1]: r[0] for r in cur.fetchall()}
 
-    # Populate fact table
+    _status("Fülle Faktentabelle ...")
     for _, row in df.iterrows():
         company_id = company_map.get((row.get("company"), row.get("insttype")))
         location_id = location_map.get(
@@ -149,6 +190,10 @@ def create_data_warehouse(df: pd.DataFrame, conn_info: Dict[str, str | int]) -> 
                 row.get("salary"),
             ),
         )
+        processed += 1
+        _update_progress()
     conn.commit()
     cur.close()
     conn.close()
+    _status("Fertig")
+    _progress(100.0)

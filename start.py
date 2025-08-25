@@ -160,6 +160,43 @@ class DedupeWorker(QtCore.QObject):
         self.finished.emit(duplicates)
 
 
+class DataWarehouseWorker(QtCore.QObject):
+    finished = QtCore.pyqtSignal()
+    progress = QtCore.pyqtSignal(int)
+    status = QtCore.pyqtSignal(str)
+    error = QtCore.pyqtSignal(str)
+
+    def __init__(self, dataframe, conn_info) -> None:
+        super().__init__()
+        self._dataframe = dataframe
+        self._conn_info = conn_info
+
+    @QtCore.pyqtSlot()
+    def run(self):
+        def progress_cb(value: float) -> None:
+            self.progress.emit(int(value))
+
+        def status_cb(message: str) -> None:
+            self.status.emit(message)
+
+        try:
+            create_data_warehouse(
+                self._dataframe,
+                self._conn_info,
+                progress_callback=progress_cb,
+                status_callback=status_cb,
+            )
+        except psycopg2.OperationalError as exc:  # pragma: no cover - UI only
+            self.error.emit(
+                "Verbindung zur Datenbank fehlgeschlagen. Bitte prüfen Sie, ob der PostgreSQL-Server läuft und die Zugangsdaten korrekt sind.\n"
+                + str(exc)
+            )
+        except Exception as exc:  # pragma: no cover - UI only
+            self.error.emit(str(exc))
+        else:
+            self.finished.emit()
+
+
 class MainWindow(QtWidgets.QMainWindow):
     def __init__(self, path: str) -> None:
         super().__init__()
@@ -659,6 +696,16 @@ class DataWarehouseWindow(QtWidgets.QDialog):
         self._create_button = QtWidgets.QPushButton("Data Warehouse erstellen", self)
         self._create_button.clicked.connect(self._create)
         form.addRow(self._create_button)
+        self._status = QtWidgets.QLabel("", self)
+        self._status.hide()
+        form.addRow(self._status)
+        self._progress = QtWidgets.QProgressBar(self)
+        self._progress.setRange(0, 100)
+        self._progress.hide()
+        form.addRow(self._progress)
+
+        self._worker: DataWarehouseWorker | None = None
+        self._thread: QtCore.QThread | None = None
 
     def _create(self) -> None:
         try:
@@ -672,22 +719,38 @@ class DataWarehouseWindow(QtWidgets.QDialog):
         except ValueError:
             QtWidgets.QMessageBox.critical(self, "Fehler", "Port muss eine Zahl sein")
             return
-        try:
-            create_data_warehouse(self._dataframe, info)
-            if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
-                QtWidgets.QMessageBox.information(
-                    self, "Erfolg", "Data Warehouse wurde erstellt"
-                )
-            self.accept()
-        except psycopg2.OperationalError as exc:  # pragma: no cover - UI only
-            QtWidgets.QMessageBox.critical(
-                self,
-                "Verbindungsfehler",
-                "Verbindung zur Datenbank fehlgeschlagen. Bitte prüfen Sie, ob der PostgreSQL-Server läuft und die Zugangsdaten korrekt sind.\n"
-                + str(exc),
+
+        self._create_button.setEnabled(False)
+        self._status.show()
+        self._progress.show()
+        self._progress.setValue(0)
+        self._status.setText("Starte Import ...")
+
+        self._worker = DataWarehouseWorker(self._dataframe, info)
+        self._thread = QtCore.QThread(self)
+        self._worker.moveToThread(self._thread)
+        self._thread.started.connect(self._worker.run)
+        self._worker.progress.connect(self._progress.setValue)
+        self._worker.status.connect(self._status.setText)
+        self._worker.finished.connect(self._on_finished)
+        self._worker.error.connect(self._on_error)
+        self._worker.finished.connect(self._thread.quit)
+        self._worker.error.connect(self._thread.quit)
+        self._worker.finished.connect(self._worker.deleteLater)
+        self._worker.error.connect(self._worker.deleteLater)
+        self._thread.finished.connect(self._thread.deleteLater)
+        self._thread.start()
+
+    def _on_finished(self) -> None:
+        if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+            QtWidgets.QMessageBox.information(
+                self, "Erfolg", "Data Warehouse wurde erstellt",
             )
-        except Exception as exc:  # pragma: no cover - UI only
-            QtWidgets.QMessageBox.critical(self, "Fehler", str(exc))
+        self.accept()
+
+    def _on_error(self, message: str) -> None:  # pragma: no cover - UI only
+        QtWidgets.QMessageBox.critical(self, "Fehler", message)
+        self._create_button.setEnabled(True)
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Startet die Informationsintegration-GUI")
