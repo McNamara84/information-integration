@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import threading
+import webbrowser
 from typing import cast, TypeVar
 
 import pandas as pd
@@ -245,6 +247,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._init_db_button.hide()
         self._init_db_button.clicked.connect(self._init_database)
         layout.addWidget(self._init_db_button)
+        self._visualize_button = QtWidgets.QPushButton("Datensätze visualisieren")
+        self._visualize_button.hide()
+        self._visualize_button.clicked.connect(self._visualize_data)
+        layout.addWidget(self._visualize_button)
         self.setCentralWidget(container)
 
         self._worker = LoadWorker(path)
@@ -338,7 +344,27 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _init_database(self) -> None:
         window = DataWarehouseWindow(self._dataframe, self)
-        window.exec()
+        result = window.exec()
+        if result == QtWidgets.QDialog.DialogCode.Accepted:
+            self._visualize_button.show()
+
+    def _visualize_data(self) -> None:
+        settings = QtCore.QSettings("fh-potsdam", "information-integration")
+        info = {
+            "host": settings.value("db/host", "localhost"),
+            "port": int(settings.value("db/port", 5432)),
+            "user": settings.value("db/user", ""),
+            "password": settings.value("db/password", ""),
+            "dbname": settings.value("db/dbname", "bibliojobs_dw"),
+        }
+
+        def run() -> None:
+            from dashboard import create_app
+            app = create_app(info)
+            app.run(port=5000, use_reloader=False)
+
+        threading.Thread(target=run, daemon=True).start()
+        webbrowser.open("http://127.0.0.1:5000/")
 
     def _remove_duplicates(self) -> None:
         if self._dedupe_thread and self._dedupe_thread.isRunning():

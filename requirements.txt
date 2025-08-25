@@ -10,3 +10,4 @@ PyQt6
 nltk
 requests
 reverse_geocoder
+Flask
