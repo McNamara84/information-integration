@@ -18,6 +18,7 @@ Ein Projekt im Rahmen der Hausarbeit im 6. Fachsemester des Studiengangs **Infor
   - Ordnet Orte den Bundesländern zu und erweitert den Datensatz um die Spalte `region` (Mapping aus `ort_bundesland.sql`, Fallback über `reverse_geocoder` bei vorhandenen Koordinaten).
   - Standardisiert Firmennamen und bereinigt kryptische Werte.
   - Extrahiert Angaben zu Befristung, Arbeitszeit und Vergütung aus dem Attribut `jobdescription` in separate Spalten.
+  - Visualisiert den Fortschritt jedes Bereinigungsschritts über eine Statusleiste.
 - **Data Profiling & Reporting**
   - Grafische Oberfläche (PyQt6) zur Anzeige von Profiling-Kennzahlen und zur Klassifikation von Datenfehlern nach Naumann/Leser.
   - Export von Bereinigungen und Fehlerberichten als Excel-Datei.
