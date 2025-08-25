@@ -15,7 +15,7 @@ Ein Projekt im Rahmen der Hausarbeit im 6. Fachsemester des Studiengangs **Infor
 - **Datenbereinigung**
   - Dekodiert HTML-Entitäten, entfernt Tags und extrahiert Postleitzahlen aus Firmennamen in eine eigene Spalte.
   - Ersetzt Kfz-Kennzeichen durch vollständige Ortsnamen (Wikidata API über `requests` mit lokalem Cache).
-  - Ordnet Orte den Bundesländern zu und erweitert den Datensatz um die Spalte `region` (Mapping aus `ort_bundesland.sql`).
+  - Ordnet Orte den Bundesländern zu und erweitert den Datensatz um die Spalte `region` (Mapping aus `ort_bundesland.sql`, Fallback über `reverse_geocoder` bei vorhandenen Koordinaten).
   - Standardisiert Firmennamen und bereinigt kryptische Werte.
   - Extrahiert Angaben zu Befristung, Arbeitszeit und Vergütung aus dem Attribut `jobdescription` in separate Spalten.
 - **Data Profiling & Reporting**
