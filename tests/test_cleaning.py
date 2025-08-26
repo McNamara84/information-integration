@@ -375,8 +375,10 @@ def test_region_enrichment_fuzzy():
 
 def test_region_enrichment_coordinates():
     """Coordinates should resolve to German federal states when names fail."""
-    with patch('cleaning.fetch_german_license_plates') as mock_fetch:
+    with patch('cleaning.fetch_german_license_plates') as mock_fetch, \
+         patch('cleaning.region_from_coordinates') as mock_coords:
         mock_fetch.return_value = {}
+        mock_coords.return_value = "Mecklenburg-Vorpommern"
 
         df = pd.DataFrame({
             "jobid": [19065],
@@ -388,6 +390,33 @@ def test_region_enrichment_coordinates():
         cleaned = clean_dataframe(df)
 
         assert cleaned.loc[0, "region"] == "Mecklenburg-Vorpommern"
+        mock_coords.assert_called_once()
+
+
+def test_region_coordinates_match_sql_first():
+    """Coordinate mapping via SQL should take precedence over API calls."""
+    with patch('cleaning.fetch_german_license_plates') as mock_fetch, \
+         patch('cleaning.region_from_coordinates') as mock_coords:
+        mock_fetch.return_value = {}
+        mock_coords.return_value = "ShouldNotBeCalled"
+
+        df = pd.DataFrame({
+            "location": ["Irgendwo"],
+            "geo_lat": [52.54734],
+            "geo_lon": [13.35594],
+        })
+
+        mapping = pd.DataFrame({
+            "location": ["Wedding"],
+            "region": ["Berlin"],
+            "geo_lat": [52.54734],
+            "geo_lon": [13.35594],
+        })
+
+        cleaned = clean_dataframe(df, region_mapping=mapping)
+
+        assert cleaned.loc[0, "region"] == "Berlin"
+        mock_coords.assert_not_called()
 
 
 def test_region_ambiguous_locations_use_coordinates():

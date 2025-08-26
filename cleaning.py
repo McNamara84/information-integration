@@ -587,16 +587,47 @@ def clean_dataframe(
 
     if region_mapping is not None and "location" in cleaned.columns:
         _status("Bestimme Regionen...")
-        # Remove ambiguous location entries where multiple regions exist
+        cleaned["region"] = None
+
+        # 1) exact coordinate mapping using SQL dump
+        if {
+            "geo_lat",
+            "geo_lon",
+        }.issubset(cleaned.columns) and {
+            "geo_lat",
+            "geo_lon",
+        }.issubset(region_mapping.columns):
+            coord_map = (
+                region_mapping.dropna(subset=["geo_lat", "geo_lon"])
+                .assign(
+                    geo_lat=lambda df: df["geo_lat"].round(4),
+                    geo_lon=lambda df: df["geo_lon"].round(4),
+                )
+                .drop_duplicates(["geo_lat", "geo_lon"])
+                .set_index(["geo_lat", "geo_lon"])["region"]
+            )
+            cleaned["region"] = [
+                coord_map.get((lat, lon))
+                for lat, lon in zip(
+                    cleaned["geo_lat"].round(4), cleaned["geo_lon"].round(4)
+                )
+            ]
+
+        # 2) match by location if still missing
         region_counts = region_mapping.groupby("location")["region"].nunique()
         ambiguous_locations = region_counts[region_counts > 1].index
         unique_mapping = region_mapping[~region_mapping["location"].isin(ambiguous_locations)]
-
-        region_map = (
+        location_map = (
             unique_mapping.drop_duplicates("location").set_index("location")["region"]
         )
-        cleaned["region"] = cleaned["location"].map(region_map)
 
+        missing_mask = cleaned["region"].isna() & cleaned["location"].notna()
+        if missing_mask.any():
+            cleaned.loc[missing_mask, "region"] = cleaned.loc[
+                missing_mask, "location"
+            ].map(location_map)
+
+        # optional fuzzy matching for remaining
         missing_mask = cleaned["region"].isna() & cleaned["location"].notna()
         if missing_mask.any():
             missing_locations = (
@@ -605,11 +636,12 @@ def clean_dataframe(
             fuzzy_cache = {
                 loc: match_region_fuzzy(loc, unique_mapping) for loc in missing_locations
             }
-            cleaned.loc[missing_mask, "region"] = cleaned.loc[missing_mask, "location"].map(
-                fuzzy_cache
-            )
+            cleaned.loc[missing_mask, "region"] = cleaned.loc[
+                missing_mask, "location"
+            ].map(fuzzy_cache)
 
-        if "geo_lat" in cleaned.columns and "geo_lon" in cleaned.columns:
+        # 3) API fallback using coordinates
+        if {"geo_lat", "geo_lon"}.issubset(cleaned.columns):
             coord_mask = (
                 cleaned["region"].isna()
                 & cleaned["geo_lat"].notna()
@@ -619,7 +651,9 @@ def clean_dataframe(
                 cleaned.loc[coord_mask, "region"] = cleaned.loc[
                     coord_mask, ["geo_lat", "geo_lon"]
                 ].apply(
-                    lambda row: region_from_coordinates(row["geo_lat"], row["geo_lon"]),
+                    lambda row: region_from_coordinates(
+                        row["geo_lat"], row["geo_lon"]
+                    ),
                     axis=1,
                 )
 

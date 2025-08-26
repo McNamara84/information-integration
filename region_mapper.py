@@ -4,31 +4,35 @@ from functools import lru_cache
 from typing import Optional
 
 import pandas as pd
+import requests
 from rapidfuzz import process
 
 
 @lru_cache()
 def region_from_coordinates(lat: float, lon: float) -> Optional[str]:
-    """Return German federal state for given ``lat`` and ``lon``.
+    """Return German federal state for given ``lat`` and ``lon`` using an API.
 
-    Uses the offline :mod:`reverse_geocoder` dataset to map coordinates to the
-    nearest settlement and extracts the ``admin1`` field which corresponds to
-    the Bundesland. Only results within Germany (``cc == 'DE'``) are returned;
-    otherwise ``None`` is yielded. Results are cached to avoid repeated lookups
-    for the same coordinate pair.
+    Queries the public Nominatim API which returns address details for the
+    provided coordinates. The ``state`` field is used as Bundesland. Results are
+    cached to avoid repeated lookups for identical coordinate pairs. Network
+    errors or missing data result in ``None``.
     """
 
     if pd.isna(lat) or pd.isna(lon):
         return None
-    try:
-        import reverse_geocoder as rg  # type: ignore
 
-        result = rg.search((float(lat), float(lon)), mode=1)
+    try:
+        response = requests.get(
+            "https://nominatim.openstreetmap.org/reverse",
+            params={"lat": float(lat), "lon": float(lon), "format": "json", "zoom": 3},
+            headers={"User-Agent": "information-integration/1.0"},
+            timeout=10,
+        )
+        if response.ok:
+            data = response.json()
+            return data.get("address", {}).get("state")
     except Exception:
         return None
-
-    if result and result[0].get("cc") == "DE":
-        return result[0].get("admin1")
 
     return None
 
@@ -84,12 +88,26 @@ def load_region_mapping(path: str | Path = Path(__file__).with_name("ort_bundesl
         DataFrame with columns ``location`` and ``region``.
     """
 
-    pattern = re.compile(r"\('([^']*)',\s*'([^']*)'")
+    pattern = re.compile(
+        r"\('([^']*)',\s*'([^']*)',\s*'([^']*)',\s*'([^']*)'"
+    )
     records = []
     with Path(path).open(encoding="utf-8") as fh:
         for line in fh:
-            for name, region in pattern.findall(line):
-                records.append({"location": name, "region": region})
+            for name, region, lat, lon in pattern.findall(line):
+                try:
+                    lat_f = float(lat)
+                    lon_f = float(lon)
+                except ValueError:
+                    continue
+                records.append(
+                    {
+                        "location": name,
+                        "region": region,
+                        "geo_lat": lat_f,
+                        "geo_lon": lon_f,
+                    }
+                )
 
     return pd.DataFrame(records)
 
