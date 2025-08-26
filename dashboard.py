@@ -69,7 +69,8 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
         conn = get_conn()
         cur = conn.cursor()
         cur.execute("SELECT COUNT(*) FROM fact_job")
-        total = cur.fetchone()[0]
+        row = cur.fetchone()
+        total = row[0] if row and row[0] is not None else 0
         cur.execute(
             """SELECT dc.insttype, COUNT(*)
                FROM dim_company dc
