@@ -40,3 +40,20 @@ def test_region_from_coordinates_retries_after_rate_limit():
     assert result == "Berlin"
     assert mock_get.call_count == 2
     assert mock_sleep.called
+
+
+def test_region_from_coordinates_falls_back_to_secondary_service():
+    region_from_coordinates.cache_clear()
+    failure = Mock()
+    failure.ok = False
+    failure.status_code = 500
+
+    success = Mock()
+    success.ok = True
+    success.json.return_value = {"address": {"state": "State of Berlin"}}
+
+    with patch("region_mapper.requests.get", side_effect=[failure, success]) as mock_get:
+        result = region_from_coordinates(52.5, 13.4)
+
+    assert result == "Berlin"
+    assert mock_get.call_count == 2

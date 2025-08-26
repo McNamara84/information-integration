@@ -70,6 +70,7 @@ def region_from_coordinates(lat: float, lon: float) -> Optional[str]:
         "Accept-Language": "de",
     }
 
+    region = None
     for _ in range(2):  # allow a single retry on HTTP 429/503
         try:
             _throttle_nominatim()
@@ -84,10 +85,32 @@ def region_from_coordinates(lat: float, lon: float) -> Optional[str]:
                 continue
             if response.ok:
                 data = response.json()
-                return _normalize_region(data.get("address", {}).get("state"))
+                region = _normalize_region(data.get("address", {}).get("state"))
+            break
         except Exception:
-            return None
-    return None
+            break
+
+    if region:
+        return region
+
+    # Fallback service if Nominatim fails or returns no region
+    try:
+        response = requests.get(
+            "https://geocode.maps.co/reverse",
+            params={"lat": float(lat), "lon": float(lon)},
+            headers=headers,
+            timeout=10,
+        )
+        if response.ok:
+            data = response.json()
+            region = _normalize_region(
+                data.get("address", {}).get("state")
+                or data.get("state")
+                or data.get("region")
+            )
+    except Exception:
+        pass
+    return region
 
 def match_region_fuzzy(location: str, mapping: pd.DataFrame, threshold: int = 90) -> Optional[str]:
     """Return region name for *location* using fuzzy matching.

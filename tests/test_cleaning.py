@@ -465,3 +465,29 @@ def test_region_api_fallback_without_location_column():
         mock_fetch.assert_not_called()
         mock_coords.assert_called_once()
 
+
+def test_region_api_fallback_with_unmapped_location():
+    """Fallback API should run when location is unmapped but coordinates exist."""
+    with patch('cleaning.fetch_german_license_plates') as mock_fetch, \
+         patch('cleaning.load_region_mapping') as mock_mapping, \
+         patch('cleaning.region_from_coordinates') as mock_coords:
+        mock_fetch.return_value = {}
+        mock_mapping.return_value = pd.DataFrame({
+            'location': ['Hamburg'],
+            'region': ['Hamburg'],
+            'geo_lat': [53.55],
+            'geo_lon': [10.0],
+        })
+        mock_coords.return_value = 'Berlin'
+
+        df = pd.DataFrame({
+            'location': ['Unbekannt'],
+            'geo_lat': [52.52],
+            'geo_lon': [13.405],
+        })
+
+        cleaned = clean_dataframe(df)
+
+        assert cleaned.loc[0, 'region'] == 'Berlin'
+        mock_coords.assert_called_once()
+
