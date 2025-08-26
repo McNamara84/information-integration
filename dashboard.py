@@ -55,7 +55,14 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
     app = Flask(__name__)
 
     def get_conn():
-        return psycopg2.connect(**conn_info)
+        host = conn_info.get("host", "localhost")
+        port = int(conn_info.get("port", 5432))
+        user = conn_info.get("user", "postgres")
+        password = conn_info.get("password", "")
+        dbname = conn_info.get("dbname", "datawarehouse")
+        return psycopg2.connect(
+            host=host, port=port, user=user, password=password, dbname=dbname
+        )
 
     @app.route('/')
     def index():
