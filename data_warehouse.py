@@ -5,6 +5,66 @@ import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
 
+def is_data_warehouse_initialized(
+    df: pd.DataFrame, conn_info: Dict[str, str | int]
+) -> bool:
+    """Return ``True`` if all tables exist with expected row counts.
+
+    The expected counts are derived from ``df`` and compared with the
+    contents of the target database defined by ``conn_info``.
+    """
+
+    host = conn_info.get("host", "localhost")
+    port = int(conn_info.get("port", 5432))
+    user = conn_info.get("user", "postgres")
+    password = conn_info.get("password", "")
+    dbname = conn_info.get("dbname", "datawarehouse")
+
+    try:
+        conn = psycopg2.connect(
+            host=host, port=port, user=user, password=password, dbname=dbname
+        )
+    except Exception:
+        return False
+
+    cur = conn.cursor()
+    tables = {"dim_company", "dim_location", "dim_jobtype", "fact_job"}
+    cur.execute(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema='public'"
+    )
+    existing = {row[0] for row in cur.fetchall()}
+    if not tables.issubset(existing):
+        cur.close()
+        conn.close()
+        return False
+
+    company_expected = len(df[["company", "insttype"]].drop_duplicates())
+    location_expected = len(
+        df[["location", "country", "geo_lat", "geo_lon", "plz", "region"]]
+        .drop_duplicates()
+    )
+    jobtype_expected = len(df[["jobtype"]].drop_duplicates())
+    fact_expected = len(df)
+
+    cur.execute("SELECT COUNT(*) FROM dim_company")
+    company_count = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM dim_location")
+    location_count = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM dim_jobtype")
+    jobtype_count = cur.fetchone()[0]
+    cur.execute("SELECT COUNT(*) FROM fact_job")
+    fact_count = cur.fetchone()[0]
+    cur.close()
+    conn.close()
+
+    return (
+        company_count == company_expected
+        and location_count == location_expected
+        and jobtype_count == jobtype_expected
+        and fact_count == fact_expected
+    )
+
+
 def create_data_warehouse(
     df: pd.DataFrame,
     conn_info: Dict[str, str | int],
