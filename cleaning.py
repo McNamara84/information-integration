@@ -536,12 +536,80 @@ def clean_dataframe(
 
         # Use extracted city to correct location if needed
         if "location" in cleaned.columns:
-            company_like = r"\b(?:gmbh|mbh|ag|kg|gbr|e\.v\.|generalvikariat)\b"
+            company_like = r"\b(?:gmbh|mbh|ag|kg|gbr|e\.v\.|generalvikariat|versicherung|bibliothek|stadtbücherei|universitätsbibliothek|landesbibliothek|staatsbibliothek|hochschule|universität|institut|zentrum|gesellschaft|stiftung|verlag|kulturbesitz)\b"
+    
+            # Zusätzliche Kriterien für verdächtige Location-Namen
+            suspicious_locations = [
+                "MVB GmbH", "GVL", "Quadrate", "R+V Versicherung",
+                "Allianz ONE-Business Solutions GmbH Verwaltungspost",
+                "AOK -Die Gesundheitskasse für Niedersachsen Beleglesezentrum",
+                "Landeshauptstadt Der Magistrat",
+                "Südwestdeutsche Verlagsanstalt GmbH & Co. KG"
+            ]
+            
+            # Erkenne verdächtige Namen auch durch andere Kriterien
+            def is_suspicious_location(loc_name):
+                if pd.isna(loc_name):
+                    return False
+                loc_str = str(loc_name)
+                
+                # Enthält typische Firmen-Keywords
+                if re.search(company_like, loc_str, re.IGNORECASE):
+                    return True
+                
+                # Ist in der Liste bekannter problematischer Namen
+                if loc_str in suspicious_locations:
+                    return True
+                    
+                # Enthält mehrere Großbuchstaben (Abkürzungen wie GVL, MVB)
+                if re.search(r'^[A-ZÄÖÜß]{2,}(\s|$)', loc_str):
+                    return True
+                    
+                # Sehr lange Namen (wahrscheinlich Firmennamen)
+                if len(loc_str) > 50:
+                    return True
+                    
+                # Enthält "Preußischer Kulturbesitz", "Beleglesezentrum", etc.
+                specific_terms = ["Preußischer Kulturbesitz", "Beleglesezentrum", "Verwaltungspost", "Der Magistrat"]
+                if any(term in loc_str for term in specific_terms):
+                    return True
+                    
+                return False
+            
             mask = (
                 cleaned["location"].isna()
-                | cleaned["location"].str.contains(company_like, case=False, na=True)
+                | cleaned["location"].apply(is_suspicious_location)
             ) & city_extracted.notna()
+            
             cleaned.loc[mask, "location"] = city_extracted[mask]
+            
+            # Fallback: Wenn immer noch verdächtige Namen vorhanden sind, versuche aus Company-Namen zu extrahieren
+            still_suspicious = cleaned["location"].apply(is_suspicious_location)
+            if still_suspicious.any():
+                # Versuche aus dem Company-Feld Städte zu extrahieren
+                for idx in cleaned[still_suspicious].index:
+                    company_name = cleaned.loc[idx, "company"]
+                    if pd.notna(company_name):
+                        company_str = str(company_name)
+                        
+                        # Einfache Stadtextraktion aus Company-Namen
+                        city_patterns = [
+                            r"Frankfurt(?:\s+am\s+Main)?",
+                            r"Berlin",
+                            r"Hamburg", 
+                            r"München",
+                            r"Mannheim",
+                            r"Stuttgart",
+                            r"Wiesbaden",
+                            r"Braunschweig"
+                        ]
+                        
+                        for pattern in city_patterns:
+                            match = re.search(pattern, company_str, re.IGNORECASE)
+                            if match:
+                                cleaned.loc[idx, "location"] = match.group(0)
+                                break
+            
         elif city_extracted.notna().any():
             cleaned["location"] = city_extracted
 
