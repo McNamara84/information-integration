@@ -12,7 +12,7 @@ import pandas as pd
 from PyQt6 import QtCore, QtWidgets, QtGui
 import psycopg2
 
-ICON_PATH = os.path.join(os.path.dirname(__file__), "assets", "fhp_logo.svg")
+ICON_PATH = os.path.join(os.path.dirname(__file__), "assets", "icon.png")
 # Will be initialized after QApplication creation in main()
 APP_ICON: QtGui.QIcon | None = None
 
@@ -846,7 +846,26 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if sys.platform.startswith("win"):  # pragma: no cover - Windows only
+        import ctypes
+        # Set the AppUserModelID *before* creating QApplication so Windows
+        # uses our custom icon for the taskbar instead of python.exe
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "information-integration"
+        )
+
     app = QtWidgets.QApplication(sys.argv)
+
+    if sys.platform == "darwin":  # pragma: no cover - macOS only
+        # Use the custom icon for the dock as well
+        try:
+            from AppKit import NSApplication, NSImage  # type: ignore
+
+            NSApplication.sharedApplication().setApplicationIconImage_(
+                NSImage.alloc().initWithContentsOfFile_(ICON_PATH)
+            )
+        except Exception:  # pragma: no cover - optional dependency
+            pass
     apply_modern_style(app)
 
     # Initialize the application icon after QApplication is created
