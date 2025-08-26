@@ -151,10 +151,10 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
         region_counts = {bl: 0 for bl in BUNDESLAENDER}
         unknown = 0
         for lat, lon, count in location_rows:
-            region = region_from_coordinates(lat, lon)
-            region = REGION_MAP.get(region)
-            if region in region_counts:
-                region_counts[region] += count
+            region_name = region_from_coordinates(lat, lon)
+            region_name = REGION_MAP.get(region_name) if region_name is not None else None
+            if region_name in region_counts:
+                region_counts[region_name] += count
             else:
                 unknown += count
         regions = [(bl, region_counts[bl]) for bl in BUNDESLAENDER]
