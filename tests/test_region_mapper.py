@@ -19,3 +19,24 @@ def test_region_from_coordinates_normalizes_api_response():
     with patch("region_mapper.requests.get", return_value=fake_response):
         result = region_from_coordinates(52.5, 13.4)
     assert result == "Berlin"
+
+
+def test_region_from_coordinates_retries_after_rate_limit():
+    region_from_coordinates.cache_clear()
+    rate_limited = Mock()
+    rate_limited.status_code = 429
+    rate_limited.ok = False
+
+    success = Mock()
+    success.status_code = 200
+    success.ok = True
+    success.json.return_value = {"address": {"state": "State of Berlin"}}
+
+    with patch("region_mapper.requests.get", side_effect=[rate_limited, success]) as mock_get, \
+         patch("region_mapper.time.sleep") as mock_sleep:
+        mock_sleep.return_value = None
+        result = region_from_coordinates(52.5, 13.4)
+
+    assert result == "Berlin"
+    assert mock_get.call_count == 2
+    assert mock_sleep.called

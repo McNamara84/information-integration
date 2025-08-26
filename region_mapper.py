@@ -1,5 +1,6 @@
 from pathlib import Path
 import re
+import time
 from functools import lru_cache
 from typing import Optional
 
@@ -14,6 +15,19 @@ from rapidfuzz import process
 REGION_ALIASES = {
     "State of Berlin": "Berlin",
 }
+
+
+_last_nominatim_call = 0.0
+
+
+def _throttle_nominatim(min_interval: float = 1.0) -> None:
+    """Ensure at most one Nominatim request per ``min_interval`` seconds."""
+
+    global _last_nominatim_call
+    elapsed = time.monotonic() - _last_nominatim_call
+    if elapsed < min_interval:
+        time.sleep(min_interval - elapsed)
+    _last_nominatim_call = time.monotonic()
 
 
 def _normalize_region(region: Optional[str]) -> Optional[str]:
@@ -42,25 +56,37 @@ def region_from_coordinates(lat: float, lon: float) -> Optional[str]:
     Queries the public Nominatim API which returns address details for the
     provided coordinates. The ``state`` field is used as Bundesland. Results are
     cached to avoid repeated lookups for identical coordinate pairs. Network
-    errors or missing data result in ``None``.
+    errors or missing data result in ``None``. The function adheres to the
+    service's usage policy by issuing at most one request per second and
+    retrying once if the service signals rate limiting.
     """
 
     if pd.isna(lat) or pd.isna(lon):
         return None
 
-    try:
-        response = requests.get(
-            "https://nominatim.openstreetmap.org/reverse",
-            params={"lat": float(lat), "lon": float(lon), "format": "json", "zoom": 3},
-            headers={"User-Agent": "information-integration/1.0"},
-            timeout=10,
-        )
-        if response.ok:
-            data = response.json()
-            return _normalize_region(data.get("address", {}).get("state"))
-    except Exception:
-        return None
+    params = {"lat": float(lat), "lon": float(lon), "format": "json", "zoom": 3}
+    headers = {
+        "User-Agent": "information-integration/1.0",
+        "Accept-Language": "de",
+    }
 
+    for _ in range(2):  # allow a single retry on HTTP 429/503
+        try:
+            _throttle_nominatim()
+            response = requests.get(
+                "https://nominatim.openstreetmap.org/reverse",
+                params=params,
+                headers=headers,
+                timeout=10,
+            )
+            if response.status_code in {429, 503}:
+                time.sleep(1)
+                continue
+            if response.ok:
+                data = response.json()
+                return _normalize_region(data.get("address", {}).get("state"))
+        except Exception:
+            return None
     return None
 
 def match_region_fuzzy(location: str, mapping: pd.DataFrame, threshold: int = 90) -> Optional[str]:
