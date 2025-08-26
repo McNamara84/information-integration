@@ -429,22 +429,51 @@ def test_region_ambiguous_locations_choose_nearest():
         df = pd.DataFrame({
             "jobid": [1],
             "location": ["Berlin"],
-            "geo_lat": [52.52],
-            "geo_lon": [13.405],
+            "geo_lat": [52.5068016],
+            "geo_lon": [13.3525801],
         })
 
         mapping = pd.DataFrame(
             {
                 "location": ["Berlin", "Berlin"],
                 "region": ["Schleswig-Holstein", "Berlin"],
-                "geo_lat": [54.0, 52.52],
-                "geo_lon": [9.0, 13.405],
+                "geo_lat": [54.03518, 52.52437],
+                "geo_lon": [10.44908, 13.41053],
             }
         )
 
         cleaned = clean_dataframe(df, region_mapping=mapping)
 
         assert cleaned.loc[0, "region"] == "Berlin"
+        mock_coords.assert_not_called()
+
+
+def test_region_ambiguous_oldenburg_uses_coordinates():
+    """Ambiguous 'Oldenburg' should resolve via nearest coordinates."""
+    with patch('cleaning.fetch_german_license_plates') as mock_fetch, \
+         patch('cleaning.region_from_coordinates') as mock_coords:
+        mock_fetch.return_value = {}
+        mock_coords.return_value = "ShouldNotBeCalled"
+
+        df = pd.DataFrame({
+            "jobid": [1],
+            "location": ["Oldenburg"],
+            "geo_lat": [53.1499999],
+            "geo_lon": [8.2125],
+        })
+
+        mapping = pd.DataFrame(
+            {
+                "location": ["Oldenburg", "Oldenburg"],
+                "region": ["Mecklenburg-Vorpommern", "Niedersachsen"],
+                "geo_lat": [53.95508, 53.14118],
+                "geo_lon": [13.55661, 8.21467],
+            }
+        )
+
+        cleaned = clean_dataframe(df, region_mapping=mapping)
+
+        assert cleaned.loc[0, "region"] == "Niedersachsen"
         mock_coords.assert_not_called()
 
 

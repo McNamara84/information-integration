@@ -593,7 +593,7 @@ def clean_dataframe(
     if region_mapping is not None:
         _status("Bestimme Regionen...")
 
-        # 1) exact coordinate mapping using SQL dump
+        # 1) coordinate-based lookup using nearest neighbours
         if {
             "geo_lat",
             "geo_lon",
@@ -601,21 +601,20 @@ def clean_dataframe(
             "geo_lat",
             "geo_lon",
         }.issubset(region_mapping.columns):
-            coord_map = (
-                region_mapping.dropna(subset=["geo_lat", "geo_lon"])
-                .assign(
-                    geo_lat=lambda df: df["geo_lat"].round(4),
-                    geo_lon=lambda df: df["geo_lon"].round(4),
-                )
-                .drop_duplicates(["geo_lat", "geo_lon"])
-                .set_index(["geo_lat", "geo_lon"])["region"]
-            )
-            cleaned["region"] = [
-                coord_map.get((lat, lon))
-                for lat, lon in zip(
-                    cleaned["geo_lat"].round(4), cleaned["geo_lon"].round(4)
-                )
-            ]
+            mapping_coords = region_mapping.dropna(subset=["geo_lat", "geo_lon"])
+            if not mapping_coords.empty:
+                nbrs = NearestNeighbors(n_neighbors=1)
+                nbrs.fit(mapping_coords[["geo_lat", "geo_lon"]])
+                coord_mask = cleaned["geo_lat"].notna() & cleaned["geo_lon"].notna()
+                if coord_mask.any():
+                    distances, indices = nbrs.kneighbors(
+                        cleaned.loc[coord_mask, ["geo_lat", "geo_lon"]]
+                    )
+                    regions = mapping_coords.reset_index(drop=True)
+                    cleaned.loc[coord_mask, "region"] = [
+                        regions.iloc[idx]["region"] if dist <= 0.005 else None
+                        for dist, idx in zip(distances.ravel(), indices.ravel())
+                    ]
 
         # 2) match by location if still missing
         if "location" in cleaned.columns and "location" in region_mapping.columns:
@@ -628,7 +627,7 @@ def clean_dataframe(
                 loc = row["location"]
                 group = location_groups.get(loc)
                 if group is None:
-                    match = process.extractOne(str(loc), all_locations, score_cutoff=90)
+                    match = process.extractOne(str(loc), all_locations, processor=None, score_cutoff=90)
                     if match:
                         group = location_groups.get(match[0])
                 if group is None:
