@@ -587,19 +587,28 @@ def clean_dataframe(
 
     if region_mapping is not None and "location" in cleaned.columns:
         _status("Bestimme Regionen...")
-        region_map = region_mapping.drop_duplicates("location").set_index("location")["region"]
+        # Remove ambiguous location entries where multiple regions exist
+        region_counts = region_mapping.groupby("location")["region"].nunique()
+        ambiguous_locations = region_counts[region_counts > 1].index
+        unique_mapping = region_mapping[~region_mapping["location"].isin(ambiguous_locations)]
+
+        region_map = (
+            unique_mapping.drop_duplicates("location").set_index("location")["region"]
+        )
         cleaned["region"] = cleaned["location"].map(region_map)
+
         missing_mask = cleaned["region"].isna() & cleaned["location"].notna()
         if missing_mask.any():
             missing_locations = (
                 cleaned.loc[missing_mask, "location"].dropna().astype(str).unique()
             )
             fuzzy_cache = {
-                loc: match_region_fuzzy(loc, region_mapping) for loc in missing_locations
+                loc: match_region_fuzzy(loc, unique_mapping) for loc in missing_locations
             }
             cleaned.loc[missing_mask, "region"] = cleaned.loc[missing_mask, "location"].map(
                 fuzzy_cache
             )
+
         if "geo_lat" in cleaned.columns and "geo_lon" in cleaned.columns:
             coord_mask = (
                 cleaned["region"].isna()

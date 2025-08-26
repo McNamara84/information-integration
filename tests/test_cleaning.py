@@ -389,3 +389,30 @@ def test_region_enrichment_coordinates():
 
         assert cleaned.loc[0, "region"] == "Mecklenburg-Vorpommern"
 
+
+def test_region_ambiguous_locations_use_coordinates():
+    """Ambiguous place names should fall back to coordinate-based lookup."""
+    with patch('cleaning.fetch_german_license_plates') as mock_fetch, \
+         patch('cleaning.region_from_coordinates') as mock_coords:
+        mock_fetch.return_value = {}
+        mock_coords.return_value = "Berlin"
+
+        df = pd.DataFrame({
+            "jobid": [1],
+            "location": ["Berlin"],
+            "geo_lat": [52.52],
+            "geo_lon": [13.405],
+        })
+
+        mapping = pd.DataFrame(
+            {
+                "location": ["Berlin", "Berlin"],
+                "region": ["Schleswig-Holstein", "Berlin"],
+            }
+        )
+
+        cleaned = clean_dataframe(df, region_mapping=mapping)
+
+        assert cleaned.loc[0, "region"] == "Berlin"
+        mock_coords.assert_called_once()
+
