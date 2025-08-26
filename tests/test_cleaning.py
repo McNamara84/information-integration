@@ -492,29 +492,40 @@ def test_region_api_fallback_with_unmapped_location():
         mock_coords.assert_called_once()
 
 
-def test_region_api_fallback_real_world_examples():
-    """Problematic rows from the raw dataset should resolve via API fallback."""
-    rows = [
-        (12365, "Frankenthal (Pfalz)", 49.5340652, 8.3520517, "Rheinland-Pfalz"),
-        (13446, "Frankenberg (Eder)", 51.0545654, 8.7891808, "Hessen"),
-        (13504, "Gronau (Westfalen)", 52.2109108, 7.0228, "Nordrhein-Westfalen"),
-        (13544, "Stolberg (Rheinland)", 50.7891808, 6.2235961, "Nordrhein-Westfalen"),
-    ]
-    df = pd.DataFrame(rows, columns=["jobid", "location", "geo_lat", "geo_lon", "expected"])
-
-    def side_effect(lat, lon):
-        lat = float(lat)
-        lon = float(lon)
-        for _, row in df.iterrows():
-            if abs(row.geo_lat - lat) < 1e-6 and abs(row.geo_lon - lon) < 1e-6:
-                return row.expected
-        return None
-
+def test_region_location_with_qualifiers_resolves_via_mapping():
+    """Locations with qualifiers should map to the correct region without API calls."""
     with patch('cleaning.fetch_german_license_plates') as mock_fetch, \
-         patch('cleaning.region_from_coordinates', side_effect=side_effect) as mock_coords:
+         patch('cleaning.region_from_coordinates') as mock_coords:
         mock_fetch.return_value = {}
-        cleaned = clean_dataframe(df.drop(columns="expected"))
+        mock_coords.return_value = "ShouldNotBeCalled"
 
-    assert cleaned["region"].tolist() == df["expected"].tolist()
-    assert mock_coords.call_count == len(rows)
+        df = pd.DataFrame({
+            "location": ["Stolberg (Rheinland)", "Frankenthal (Pfalz)"],
+            "geo_lat": [50.7891808, 49.5340652],
+            "geo_lon": [6.2235961, 8.3520517],
+        })
+
+        mapping = pd.DataFrame(
+            {
+                "location": [
+                    "Stolberg",
+                    "Stolberg",
+                    "Frankenthal",
+                    "Frankenthal",
+                ],
+                "region": [
+                    "Nordrhein-Westfalen",
+                    "Sachsen-Anhalt",
+                    "Rheinland-Pfalz",
+                    "Thüringen",
+                ],
+                "geo_lat": [50.77368, 51.57426, 49.53414, 50.8778],
+                "geo_lon": [6.22595, 10.95582, 8.35357, 12.01292],
+            }
+        )
+
+        cleaned = clean_dataframe(df, region_mapping=mapping)
+
+    assert cleaned["region"].tolist() == ["Nordrhein-Westfalen", "Rheinland-Pfalz"]
+    mock_coords.assert_not_called()
 

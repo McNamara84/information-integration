@@ -4,12 +4,12 @@ import time
 from typing import Any, Callable, Optional
 
 import pandas as pd
-from rapidfuzz import fuzz
+from rapidfuzz import fuzz, process
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.neighbors import NearestNeighbors
 
 from license_plates import fetch_german_license_plates, resolve_license_plates_in_series
-from region_mapper import match_region_fuzzy, load_region_mapping, region_from_coordinates
+from region_mapper import load_region_mapping, region_from_coordinates
 from utils import make_status_printer
 
 
@@ -622,9 +622,15 @@ def clean_dataframe(
             location_groups = {
                 loc: grp for loc, grp in region_mapping.groupby("location")
             }
+            all_locations = list(location_groups.keys())
 
             def _resolve_location(row):
-                group = location_groups.get(row["location"])
+                loc = row["location"]
+                group = location_groups.get(loc)
+                if group is None:
+                    match = process.extractOne(str(loc), all_locations, score_cutoff=90)
+                    if match:
+                        group = location_groups.get(match[0])
                 if group is None:
                     return None
                 if len(group) == 1:
@@ -647,25 +653,6 @@ def clean_dataframe(
                 cleaned.loc[missing_mask, "region"] = cleaned.loc[missing_mask].apply(
                     _resolve_location, axis=1
                 )
-
-            # optional fuzzy matching for remaining using unique mapping
-            region_counts = region_mapping.groupby("location")["region"].nunique()
-            ambiguous_locations = region_counts[region_counts > 1].index
-            unique_mapping = region_mapping[
-                ~region_mapping["location"].isin(ambiguous_locations)
-            ]
-
-            missing_mask = cleaned["region"].isna() & cleaned["location"].notna()
-            if missing_mask.any():
-                missing_locations = (
-                    cleaned.loc[missing_mask, "location"].dropna().astype(str).unique()
-                )
-                fuzzy_cache = {
-                    loc: match_region_fuzzy(loc, unique_mapping) for loc in missing_locations
-                }
-                cleaned.loc[missing_mask, "region"] = cleaned.loc[
-                    missing_mask, "location"
-                ].map(fuzzy_cache)
 
     # 3) API fallback using coordinates
     if {"geo_lat", "geo_lon"}.issubset(cleaned.columns):

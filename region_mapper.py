@@ -64,9 +64,16 @@ def region_from_coordinates(lat: float, lon: float) -> Optional[str]:
     if pd.isna(lat) or pd.isna(lon):
         return None
 
-    params = {"lat": float(lat), "lon": float(lon), "format": "json", "zoom": 3}
+    params = {
+        "lat": float(lat),
+        "lon": float(lon),
+        "format": "json",
+        "zoom": 5,
+        "addressdetails": 1,
+        "email": "info@example.com",
+    }
     headers = {
-        "User-Agent": "information-integration/1.0",
+        "User-Agent": "information-integration/1.0 (info@example.com)",
         "Accept-Language": "de",
     }
 
@@ -97,7 +104,7 @@ def region_from_coordinates(lat: float, lon: float) -> Optional[str]:
     try:
         response = requests.get(
             "https://geocode.maps.co/reverse",
-            params={"lat": float(lat), "lon": float(lon)},
+            params={"lat": float(lat), "lon": float(lon), "format": "json"},
             headers=headers,
             timeout=10,
         )
