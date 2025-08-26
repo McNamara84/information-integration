@@ -793,12 +793,23 @@ class DataWarehouseWindow(QtWidgets.QDialog):
             if is_data_warehouse_initialized(self._dataframe, info):
                 skip = True
                 if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
-                    result = QtWidgets.QMessageBox.question(
-                        self,
-                        "Datenbank vorhanden",
+                    box = QtWidgets.QMessageBox(self)
+                    box.setWindowTitle("Datenbank vorhanden")
+                    box.setText(
                         "Alle Tabellen sind bereits vorhanden und enthalten die erwartete Anzahl an Datensätzen.\n"
-                        "Möchten Sie die Erstellung überspringen?",
+                        "Möchten Sie die Erstellung überspringen?"
                     )
+                    box.setStandardButtons(
+                        QtWidgets.QMessageBox.StandardButton.Yes
+                        | QtWidgets.QMessageBox.StandardButton.No
+                    )
+                    box.button(
+                        QtWidgets.QMessageBox.StandardButton.Yes
+                    ).setText("Ja")
+                    box.button(
+                        QtWidgets.QMessageBox.StandardButton.No
+                    ).setText("Nein")
+                    result = box.exec()
                     skip = result == QtWidgets.QMessageBox.StandardButton.Yes
                 if skip:
                     self.accept()
