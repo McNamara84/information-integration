@@ -77,6 +77,8 @@ Sie kann mit `latexmk` oder einem vergleichbaren Werkzeug kompiliert werden:
 latexmk -pdf main.tex
 ```
 
+Zur Übersetzung wird eine LaTeX-Distribution wie TeX Live benötigt; das Ergebnis wird als `main.pdf` im Projektverzeichnis abgelegt.
+
 ## Projektstruktur
 
 ```
