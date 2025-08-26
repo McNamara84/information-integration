@@ -846,13 +846,17 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    app = QtWidgets.QApplication(sys.argv)
     if sys.platform.startswith("win"):  # pragma: no cover - Windows only
         import ctypes
+        # Set the AppUserModelID *before* creating QApplication so Windows
+        # uses our custom icon for the taskbar instead of python.exe
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
             "information-integration"
         )
-    elif sys.platform == "darwin":  # pragma: no cover - macOS only
+
+    app = QtWidgets.QApplication(sys.argv)
+
+    if sys.platform == "darwin":  # pragma: no cover - macOS only
         # Use the custom icon for the dock as well
         try:
             from AppKit import NSApplication, NSImage  # type: ignore
