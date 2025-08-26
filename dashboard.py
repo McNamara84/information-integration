@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import math
+import pgeocode
 import psycopg2
 from flask import Flask, render_template_string
 
@@ -30,7 +32,12 @@ TEMPLATE = """
     <meta charset="utf-8">
     <title>Dashboard</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 </head>
 <body class="p-4">
     <div class="container">
@@ -67,6 +74,14 @@ TEMPLATE = """
                     </div>
                 </div>
             </div>
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Stellenübersicht</h5>
+                        <div id="map" style="height: 500px;"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     <script>
@@ -80,6 +95,16 @@ TEMPLATE = """
                 }]
             }
         });
+        const map = L.map('map').setView([51.3, 10.1], 6);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+        const markerData = {{ markers|tojson }};
+        const markerCluster = L.markerClusterGroup();
+        markerData.forEach(m => {
+            markerCluster.addLayer(L.marker([m.lat, m.lon]));
+        });
+        map.addLayer(markerCluster);
     </script>
 </body>
 </html>
@@ -120,6 +145,12 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
                GROUP BY dl.region"""
         )
         region_rows = cur.fetchall()
+        cur.execute(
+            """SELECT dl.geo_lat, dl.geo_lon, dl.plz
+               FROM dim_location dl
+               JOIN fact_job fj ON dl.location_id = fj.location_id"""
+        )
+        marker_rows = cur.fetchall()
         cur.close()
         conn.close()
         labels = []
@@ -139,8 +170,29 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
         regions = [(bl, region_counts[bl]) for bl in BUNDESLAENDER]
         if unknown:
             regions.append(("Unbekannt", unknown))
+        geocoder = pgeocode.Nominatim('de')
+        plz_cache: dict[str, tuple[float, float] | None] = {}
+        markers = []
+        for lat, lon, plz in marker_rows:
+            if lat is not None and lon is not None:
+                markers.append({"lat": float(lat), "lon": float(lon)})
+            elif plz:
+                coords = plz_cache.get(plz)
+                if coords is None and plz not in plz_cache:
+                    result = geocoder.query_postal_code(plz)
+                    if not math.isnan(result.latitude) and not math.isnan(result.longitude):
+                        coords = (float(result.latitude), float(result.longitude))
+                    plz_cache[plz] = coords
+                coords = plz_cache.get(plz)
+                if coords:
+                    markers.append({"lat": coords[0], "lon": coords[1]})
         return render_template_string(
-            TEMPLATE, total=total, labels=labels, counts=counts, regions=regions
+            TEMPLATE,
+            total=total,
+            labels=labels,
+            counts=counts,
+            regions=regions,
+            markers=markers,
         )
 
     return app
