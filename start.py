@@ -12,7 +12,7 @@ import pandas as pd
 from PyQt6 import QtCore, QtWidgets, QtGui
 import psycopg2
 
-ICON_PATH = os.path.join(os.path.dirname(__file__), "assets", "fhp_logo.svg")
+ICON_PATH = os.path.join(os.path.dirname(__file__), "assets", "icon.png")
 # Will be initialized after QApplication creation in main()
 APP_ICON: QtGui.QIcon | None = None
 
@@ -847,6 +847,9 @@ def main() -> None:
     args = parser.parse_args()
 
     app = QtWidgets.QApplication(sys.argv)
+    if sys.platform.startswith("win"):  # pragma: no cover - Windows only
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("information-integration")
     apply_modern_style(app)
 
     # Initialize the application icon after QApplication is created
