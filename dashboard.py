@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import psycopg2
 from flask import Flask, render_template_string
-from region_mapper import region_from_coordinates
 
 BUNDESLAENDER = [
     "Baden-Württemberg",
@@ -23,24 +22,6 @@ BUNDESLAENDER = [
     "Thüringen",
 ]
 
-REGION_MAP = {
-    "Baden-Württemberg": "Baden-Württemberg",
-    "Bavaria": "Bayern",
-    "Berlin": "Berlin",
-    "Brandenburg": "Brandenburg",
-    "Bremen": "Bremen",
-    "Hamburg": "Hamburg",
-    "Hesse": "Hessen",
-    "Mecklenburg-Western Pomerania": "Mecklenburg-Vorpommern",
-    "Lower Saxony": "Niedersachsen",
-    "North Rhine-Westphalia": "Nordrhein-Westfalen",
-    "Rhineland-Palatinate": "Rheinland-Pfalz",
-    "Saarland": "Saarland",
-    "Saxony": "Sachsen",
-    "Saxony-Anhalt": "Sachsen-Anhalt",
-    "Schleswig-Holstein": "Schleswig-Holstein",
-    "Thuringia": "Thüringen",
-}
 
 TEMPLATE = """
 <!DOCTYPE html>
@@ -133,12 +114,12 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
         )
         rows = cur.fetchall()
         cur.execute(
-            """SELECT dl.geo_lat, dl.geo_lon, COUNT(*)
+            """SELECT dl.region, COUNT(*)
                FROM dim_location dl
                JOIN fact_job fj ON dl.location_id = fj.location_id
-               GROUP BY dl.geo_lat, dl.geo_lon"""
+               GROUP BY dl.region"""
         )
-        location_rows = cur.fetchall()
+        region_rows = cur.fetchall()
         cur.close()
         conn.close()
         labels = []
@@ -150,9 +131,7 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
         labels = [f"{label} ({count / sum_counts * 100:.1f}%)" for label, count in zip(labels, counts)]
         region_counts = {bl: 0 for bl in BUNDESLAENDER}
         unknown = 0
-        for lat, lon, count in location_rows:
-            region_name = region_from_coordinates(lat, lon)
-            region_name = REGION_MAP.get(region_name) if region_name is not None else None
+        for region_name, count in region_rows:
             if region_name in region_counts:
                 region_counts[region_name] += count
             else:
