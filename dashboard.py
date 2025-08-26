@@ -24,6 +24,16 @@ BUNDESLAENDER = [
     "Thüringen",
 ]
 
+INSTTYPE_NAMES = {
+    "informationseinrichtung": "Informationseinrichtung",
+    "oeffentliche-bibliothek": "Öffentliche Bibliothek",
+    "spezialbibliothek": "Spezialbibliothek",
+    "sonstige-Einrichtung": "Sonstige",
+    "archiv": "Archiv",
+    "wissenschaftliche-Bibliothek": "Wissenschaftliche Bibliothek",
+    "bibliothek": "Bibliothek",
+}
+
 
 TEMPLATE = """
 <!DOCTYPE html>
@@ -67,7 +77,7 @@ TEMPLATE = """
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-body">
-                        <h5 class="card-title">Insttype Verteilung</h5>
+                        <h5 class="card-title">Verteilung nach Einrichtungstyp</h5>
                         <canvas id="instChart"></canvas>
                     </div>
                 </div>
@@ -188,7 +198,7 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
         labels = []
         counts = []
         for insttype, count in rows:
-            labels.append(insttype or "Unbekannt")
+            labels.append(INSTTYPE_NAMES.get(insttype, insttype or "Unbekannt"))
             counts.append(count)
         sum_counts = sum(counts) or 1
         labels = [f"{label} ({count / sum_counts * 100:.1f}%)" for label, count in zip(labels, counts)]
