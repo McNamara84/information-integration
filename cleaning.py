@@ -4,12 +4,12 @@ import time
 from typing import Any, Callable, Optional
 
 import pandas as pd
-from rapidfuzz import fuzz
+from rapidfuzz import fuzz, process
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.neighbors import NearestNeighbors
 
 from license_plates import fetch_german_license_plates, resolve_license_plates_in_series
-from region_mapper import match_region_fuzzy, load_region_mapping, region_from_coordinates
+from region_mapper import load_region_mapping, region_from_coordinates
 from utils import make_status_printer
 
 
@@ -483,6 +483,7 @@ def clean_dataframe(
     progress_callback: Optional[Callable[[float], None]] = None,
     status_callback: Optional[Callable[[str], None]] = None,
     region_mapping: Optional[pd.DataFrame] = None,
+    debug: bool = False,
 ) -> pd.DataFrame:
     """Return a cleaned copy of *df* with HTML entities decoded, tags removed,
     license plates resolved, company names standardized, and PLZ extracted to separate column.
@@ -578,41 +579,119 @@ def clean_dataframe(
     _progress(90.0)
 
     # Enrich with region information
-    if region_mapping is None and "location" in cleaned.columns:
-        _status("Lade Regionszuordnung...")
+    if region_mapping is None:
+        if _status:
+            _status("Lade Regionszuordnung...")
         try:
             region_mapping = load_region_mapping()
         except FileNotFoundError:
             region_mapping = None
 
-    if region_mapping is not None and "location" in cleaned.columns:
+    if "region" not in cleaned.columns:
+        cleaned["region"] = None
+
+    if region_mapping is not None:
         _status("Bestimme Regionen...")
-        region_map = region_mapping.drop_duplicates("location").set_index("location")["region"]
-        cleaned["region"] = cleaned["location"].map(region_map)
-        missing_mask = cleaned["region"].isna() & cleaned["location"].notna()
-        if missing_mask.any():
-            missing_locations = (
-                cleaned.loc[missing_mask, "location"].dropna().astype(str).unique()
-            )
-            fuzzy_cache = {
-                loc: match_region_fuzzy(loc, region_mapping) for loc in missing_locations
+
+        # 1) coordinate-based lookup using nearest neighbours
+        if {
+            "geo_lat",
+            "geo_lon",
+        }.issubset(cleaned.columns) and {
+            "geo_lat",
+            "geo_lon",
+        }.issubset(region_mapping.columns):
+            mapping_coords = region_mapping.dropna(subset=["geo_lat", "geo_lon"])
+            if not mapping_coords.empty:
+                nbrs = NearestNeighbors(n_neighbors=1)
+                nbrs.fit(mapping_coords[["geo_lat", "geo_lon"]])
+                coord_mask = cleaned["geo_lat"].notna() & cleaned["geo_lon"].notna()
+                if coord_mask.any():
+                    distances, indices = nbrs.kneighbors(
+                        cleaned.loc[coord_mask, ["geo_lat", "geo_lon"]]
+                    )
+                    regions = mapping_coords.reset_index(drop=True)
+                    cleaned.loc[coord_mask, "region"] = [
+                        regions.iloc[idx]["region"] if dist <= 0.005 else None
+                        for dist, idx in zip(distances.ravel(), indices.ravel())
+                    ]
+
+        # 2) match by location if still missing
+        if "location" in cleaned.columns and "location" in region_mapping.columns:
+            location_groups = {
+                loc: grp for loc, grp in region_mapping.groupby("location")
             }
-            cleaned.loc[missing_mask, "region"] = cleaned.loc[missing_mask, "location"].map(
-                fuzzy_cache
-            )
-        if "geo_lat" in cleaned.columns and "geo_lon" in cleaned.columns:
-            coord_mask = (
-                cleaned["region"].isna()
-                & cleaned["geo_lat"].notna()
-                & cleaned["geo_lon"].notna()
-            )
-            if coord_mask.any():
-                cleaned.loc[coord_mask, "region"] = cleaned.loc[
-                    coord_mask, ["geo_lat", "geo_lon"]
-                ].apply(
-                    lambda row: region_from_coordinates(row["geo_lat"], row["geo_lon"]),
-                    axis=1,
+            all_locations = list(location_groups.keys())
+
+            def _resolve_location(row):
+                loc = row["location"]
+                group = location_groups.get(loc)
+                if group is None:
+                    match = process.extractOne(str(loc), all_locations, processor=None, score_cutoff=90)
+                    if match:
+                        group = location_groups.get(match[0])
+                if group is None:
+                    return None
+                if len(group) == 1:
+                    return group.iloc[0]["region"]
+                if {
+                    "geo_lat",
+                    "geo_lon",
+                }.issubset(group.columns) and pd.notna(row.get("geo_lat")) and pd.notna(
+                    row.get("geo_lon")
+                ):
+                    distances = (
+                        (group["geo_lat"] - row["geo_lat"]) ** 2
+                        + (group["geo_lon"] - row["geo_lon"]) ** 2
+                    )
+                    return group.loc[distances.idxmin(), "region"]
+                return None
+
+            missing_mask = cleaned["region"].isna() & cleaned["location"].notna()
+            if missing_mask.any():
+                cleaned.loc[missing_mask, "region"] = cleaned.loc[missing_mask].apply(
+                    _resolve_location, axis=1
                 )
+
+    # 3) API fallback using coordinates
+    if {"geo_lat", "geo_lon"}.issubset(cleaned.columns):
+        coord_mask = (
+            cleaned["region"].isna()
+            & cleaned["geo_lat"].notna()
+            & cleaned["geo_lon"].notna()
+        )
+        if coord_mask.any():
+            cleaned.loc[coord_mask, "region"] = cleaned.loc[
+                coord_mask, ["geo_lat", "geo_lon"]
+            ].apply(
+                lambda row: region_from_coordinates(
+                    row["geo_lat"], row["geo_lon"]
+                ),
+                axis=1,
+            )
+
+    if debug:
+        missing_region = cleaned[cleaned["region"].isna()]
+        for _, row in missing_region.iterrows():
+            reasons: list[str] = []
+            loc_val = row.get("location")
+            if pd.isna(loc_val) or str(loc_val).strip() == "":
+                reasons.append("missing location")
+            if pd.isna(row.get("geo_lat")) or pd.isna(row.get("geo_lon")):
+                reasons.append("missing coordinates")
+            else:
+                reasons.append("no region match or API failure")
+            jobid = row.get("jobid", _)
+            print(
+                "[region debug] jobid=%s location=%s lat=%s lon=%s reason=%s"
+                % (
+                    jobid,
+                    loc_val,
+                    row.get("geo_lat"),
+                    row.get("geo_lon"),
+                    ", ".join(reasons) if reasons else "unknown",
+                )
+            )
 
     _progress(100.0)
     return cleaned
