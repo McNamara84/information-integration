@@ -91,7 +91,7 @@ TEMPLATE = """
                                 style="font-size: {{ size }}px;"
                                 title="{{ count }} Angebote"
                             >
-                                {{ name }}
+                                {{ name }} ({{ count }})
                             </span>
                             {% endfor %}
                         </div>
