@@ -44,10 +44,23 @@ TEMPLATE = """
         <h1 class="mb-4">Dashboard</h1>
         <div class="row g-4">
             <div class="col-md-6">
-                <div class="card text-center">
+                <div class="card text-center mb-4">
                     <div class="card-body">
                         <h5 class="card-title">Gesamtzahl Stellenanzeigen</h5>
                         <p class="display-4">{{ total }}</p>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Häufigstes Gehalt nach Bundesland</h5>
+                        <ul class="list-group list-group-flush">
+                            {% for region, salary in salaries %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                {{ region }}
+                                <span class="badge bg-secondary">{{ salary }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -147,6 +160,23 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
         )
         region_rows = cur.fetchall()
         cur.execute(
+            """SELECT region, salary FROM (
+                   SELECT dl.region AS region,
+                          fj.salary AS salary,
+                          COUNT(*) AS cnt,
+                          ROW_NUMBER() OVER (
+                              PARTITION BY dl.region
+                              ORDER BY COUNT(*) DESC
+                          ) AS rn
+                   FROM dim_location dl
+                   JOIN fact_job fj ON dl.location_id = fj.location_id
+                   WHERE fj.salary IS NOT NULL AND fj.salary <> ''
+                   GROUP BY dl.region, fj.salary
+               ) s
+               WHERE rn = 1"""
+        )
+        salary_rows = cur.fetchall()
+        cur.execute(
             """SELECT dl.geo_lat, dl.geo_lon, dl.plz, dc.company, fj.jobdescription
                FROM dim_location dl
                JOIN fact_job fj ON dl.location_id = fj.location_id
@@ -172,6 +202,11 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
         regions = [(bl, region_counts[bl]) for bl in BUNDESLAENDER]
         if unknown:
             regions.append(("Unbekannt", unknown))
+        salary_map = {bl: "Unbekannt" for bl in BUNDESLAENDER}
+        for region_name, salary in salary_rows:
+            if region_name in salary_map and salary:
+                salary_map[region_name] = salary
+        salaries = [(bl, salary_map[bl]) for bl in BUNDESLAENDER]
         geocoder = pgeocode.Nominatim('de')
         plz_cache: dict[str, tuple[float, float] | None] = {}
         markers = []
@@ -195,6 +230,7 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
             labels=labels,
             counts=counts,
             regions=regions,
+            salaries=salaries,
             markers=markers,
         )
 
