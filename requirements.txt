@@ -12,3 +12,4 @@ requests
 reverse_geocoder
 Flask
 pgeocode
+wordcloud

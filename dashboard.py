@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import math
+import base64
+from io import BytesIO
 import pgeocode
 import psycopg2
 from flask import Flask, render_template_string
+from wordcloud import WordCloud
 
 BUNDESLAENDER = [
     "Baden-Württemberg",
@@ -82,19 +85,13 @@ TEMPLATE = """
                     </div>
                 </div>
                 <div class="card mt-4">
-                    <div class="card-body">
+                    <div class="card-body text-center">
                         <h5 class="card-title">Top 10 der häufigsten Arbeitgeber</h5>
-                        <div id="companyCloud" class="d-flex flex-wrap justify-content-center">
-                            {% for name, count, size in top_companies %}
-                            <span
-                                class="mx-2"
-                                style="font-size: {{ size }}px;"
-                                title="{{ count }} Angebote"
-                            >
-                                {{ name }} ({{ count }})
-                            </span>
-                            {% endfor %}
-                        </div>
+                        <img
+                            src="data:image/png;base64,{{ company_cloud }}"
+                            alt="Top 10 Arbeitgeber"
+                            class="img-fluid"
+                        />
                     </div>
                 </div>
             </div>
@@ -243,16 +240,18 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
             if region_name in salary_map and salary:
                 salary_map[region_name] = salary
         salaries = [(bl, salary_map[bl]) for bl in BUNDESLAENDER]
-        min_font, max_font = 14, 48
-        top_companies = []
+        company_cloud = ""
         if top_company_rows:
-            counts_only = [cnt for _, cnt in top_company_rows]
-            min_count = min(counts_only)
-            max_count = max(counts_only)
-            denom = max_count - min_count or 1
-            for name, cnt in top_company_rows:
-                size = min_font + (cnt - min_count) / denom * (max_font - min_font)
-                top_companies.append((name, cnt, round(size, 2)))
+            freqs = {f"{name} ({cnt})": cnt for name, cnt in top_company_rows}
+            wc = WordCloud(
+                width=400,
+                height=200,
+                background_color="white",
+                max_words=10,
+            ).generate_from_frequencies(freqs)
+            buf = BytesIO()
+            wc.to_image().save(buf, format="PNG")
+            company_cloud = base64.b64encode(buf.getvalue()).decode("utf-8")
         geocoder = pgeocode.Nominatim('de')
         plz_cache: dict[str, tuple[float, float] | None] = {}
         markers = []
@@ -278,7 +277,7 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
             regions=regions,
             salaries=salaries,
             markers=markers,
-            top_companies=top_companies,
+            company_cloud=company_cloud,
         )
 
     return app
