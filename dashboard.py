@@ -38,6 +38,17 @@ INSTTYPE_NAMES = {
 }
 
 
+# Parameters for the employer word cloud. Adjust these values to tweak
+# the appearance of the visualization.
+WC_WIDTH = 400
+WC_HEIGHT = 200
+WC_BACKGROUND_COLOR = "white"
+WC_MAX_WORDS = 10
+WC_PREFER_HORIZONTAL = 0.5  # 0 = vertical, 1 = horizontal
+WC_RELATIVE_SCALING = 0.5   # 0 = uniform sizes, 1 = frequency based
+WC_RANDOM_STATE: int | None = None
+
+
 TEMPLATE = """
 <!DOCTYPE html>
 <html>
@@ -244,10 +255,13 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
         if top_company_rows:
             freqs = {f"{name} ({cnt})": cnt for name, cnt in top_company_rows}
             wc = WordCloud(
-                width=400,
-                height=200,
-                background_color="white",
-                max_words=10,
+                width=WC_WIDTH,
+                height=WC_HEIGHT,
+                background_color=WC_BACKGROUND_COLOR,
+                max_words=WC_MAX_WORDS,
+                prefer_horizontal=WC_PREFER_HORIZONTAL,
+                relative_scaling=WC_RELATIVE_SCALING,
+                random_state=WC_RANDOM_STATE,
             ).generate_from_frequencies(freqs)
             buf = BytesIO()
             wc.to_image().save(buf, format="PNG")
