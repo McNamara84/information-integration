@@ -6,7 +6,7 @@ import sys
 import threading
 import webbrowser
 import socket
-from typing import cast, TypeVar
+from typing import TYPE_CHECKING, cast, TypeVar
 
 import pandas as pd
 from PyQt6 import QtCore, QtWidgets, QtGui
@@ -27,6 +27,9 @@ from cleaning import (
     format_export_columns,
 )
 from data_warehouse import create_data_warehouse
+
+if TYPE_CHECKING:  # pragma: no cover - typing only
+    from werkzeug.serving import BaseWSGIServer
 
 
 ERROR_TYPES = [
@@ -259,6 +262,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self._visualize_button.hide()
         self._visualize_button.clicked.connect(self._visualize_data)
         layout.addWidget(self._visualize_button)
+        self._stop_server_button = QtWidgets.QPushButton("Webserver beenden")
+        self._stop_server_button.hide()
+        self._stop_server_button.clicked.connect(self._stop_server)
+        layout.addWidget(self._stop_server_button)
         self.setCentralWidget(container)
 
         self._worker = LoadWorker(path)
@@ -279,6 +286,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._clean_thread: QtCore.QThread | None = None
         self._dedupe_worker: DedupeWorker | None = None
         self._dedupe_thread: QtCore.QThread | None = None
+        self._server: BaseWSGIServer | None = None
+        self._server_thread: threading.Thread | None = None
 
     @QtCore.pyqtSlot(object)
     def _on_finished(self, df) -> None:
@@ -357,6 +366,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self._visualize_button.show()
 
     def _visualize_data(self) -> None:
+        if self._server is not None:
+            self._status.showMessage("Webserver läuft bereits", 5000)
+            return
         settings = QtCore.QSettings("fh-potsdam", "information-integration")
         info = {
             "host": settings.value("db/host", "localhost"),
@@ -367,16 +379,30 @@ class MainWindow(QtWidgets.QMainWindow):
         }
         port = _find_free_port()
 
-        def run() -> None:
-            from dashboard import create_app
-            app = create_app(info)
-            try:
-                app.run(host="127.0.0.1", port=port, use_reloader=False)
-            except OSError as exc:
-                print(f"Webserver konnte nicht gestartet werden: {exc}")
+        from dashboard import create_app
+        from werkzeug.serving import make_server
 
-        threading.Thread(target=run, daemon=True).start()
+        app = create_app(info)
+        server = make_server("127.0.0.1", port, app)
+        self._server = server
+        self._server_thread = threading.Thread(
+            target=server.serve_forever, daemon=True
+        )
+        self._server_thread.start()
         webbrowser.open(f"http://127.0.0.1:{port}/")
+        self._stop_server_button.show()
+        self._visualize_button.setEnabled(False)
+
+    def _stop_server(self) -> None:
+        if self._server is None:
+            return
+        self._server.shutdown()
+        if self._server_thread and self._server_thread.is_alive():
+            self._server_thread.join(timeout=1)
+        self._server = None
+        self._server_thread = None
+        self._stop_server_button.hide()
+        self._visualize_button.setEnabled(True)
 
     def _remove_duplicates(self) -> None:
         if self._dedupe_thread and self._dedupe_thread.isRunning():
