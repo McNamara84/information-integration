@@ -77,7 +77,8 @@ def create_data_warehouse(
             country TEXT,
             geo_lat DOUBLE PRECISION,
             geo_lon DOUBLE PRECISION,
-            plz TEXT
+            plz TEXT,
+            region TEXT
         )
         """
     )
@@ -109,7 +110,7 @@ def create_data_warehouse(
 
     # Populate dimension tables
     company_df = df[["company", "insttype"]].drop_duplicates().reset_index(drop=True)
-    location_df = df[["location", "country", "geo_lat", "geo_lon", "plz"]].drop_duplicates().reset_index(drop=True)
+    location_df = df[["location", "country", "geo_lat", "geo_lon", "plz", "region"]].drop_duplicates().reset_index(drop=True)
     jobtype_df = df[["jobtype"]].drop_duplicates().reset_index(drop=True)
     total_rows = len(company_df) + len(location_df) + len(jobtype_df) + len(df)
     processed = 0
@@ -133,21 +134,22 @@ def create_data_warehouse(
     _status("Fülle Orte ...")
     for _, row in location_df.iterrows():
         cur.execute(
-            """INSERT INTO dim_location (location, country, geo_lat, geo_lon, plz)
-            VALUES (%s, %s, %s, %s, %s)""",
+            """INSERT INTO dim_location (location, country, geo_lat, geo_lon, plz, region)
+            VALUES (%s, %s, %s, %s, %s, %s)""",
             (
                 row.get("location"),
                 row.get("country"),
                 row.get("geo_lat"),
                 row.get("geo_lon"),
                 row.get("plz"),
+                row.get("region"),
             ),
         )
         processed += 1
         _update_progress()
     conn.commit()
     cur.execute(
-        "SELECT location_id, location, country, geo_lat, geo_lon, plz FROM dim_location"
+        "SELECT location_id, location, country, geo_lat, geo_lon, plz, region FROM dim_location"
     )
     location_map = {(r[1], r[2], r[3], r[4], r[5]): r[0] for r in cur.fetchall()}
 
