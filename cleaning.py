@@ -591,8 +591,14 @@ def clean_dataframe(
         cleaned["region"] = cleaned["location"].map(region_map)
         missing_mask = cleaned["region"].isna() & cleaned["location"].notna()
         if missing_mask.any():
-            cleaned.loc[missing_mask, "region"] = cleaned.loc[missing_mask, "location"].apply(
-                lambda loc: match_region_fuzzy(loc, region_mapping)
+            missing_locations = (
+                cleaned.loc[missing_mask, "location"].dropna().astype(str).unique()
+            )
+            fuzzy_cache = {
+                loc: match_region_fuzzy(loc, region_mapping) for loc in missing_locations
+            }
+            cleaned.loc[missing_mask, "region"] = cleaned.loc[missing_mask, "location"].map(
+                fuzzy_cache
             )
         if "geo_lat" in cleaned.columns and "geo_lon" in cleaned.columns:
             coord_mask = (
