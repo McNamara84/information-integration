@@ -75,6 +75,14 @@ TEMPLATE = """
             <div class="col-12">
                 <div class="card">
                     <div class="card-body">
+                        <h5 class="card-title">Geografische Lage der Stellen</h5>
+                        <div id="map" style="height: 500px;"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
                         <h5 class="card-title">Stellen nach Bundesland</h5>
                         <ul class="list-group list-group-flush">
                             {% for region, count in regions %}
@@ -84,14 +92,6 @@ TEMPLATE = """
                             </li>
                             {% endfor %}
                         </ul>
-                    </div>
-                </div>
-            </div>
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">Stellenübersicht</h5>
-                        <div id="map" style="height: 500px;"></div>
                     </div>
                 </div>
             </div>
