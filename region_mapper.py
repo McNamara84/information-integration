@@ -8,6 +8,33 @@ import requests
 from rapidfuzz import process
 
 
+# Some state names in the SQL dump or API responses use English
+# descriptions such as ``"State of Berlin"``.  Normalize those to the
+# short German names used elsewhere in the project.
+REGION_ALIASES = {
+    "State of Berlin": "Berlin",
+}
+
+
+def _normalize_region(region: Optional[str]) -> Optional[str]:
+    """Return a standardized region name or ``None``.
+
+    Parameters
+    ----------
+    region:
+        Original region name which might contain English descriptors.
+
+    Returns
+    -------
+    Optional[str]
+        Normalized region name.
+    """
+
+    if region is None:
+        return None
+    return REGION_ALIASES.get(region, region)
+
+
 @lru_cache()
 def region_from_coordinates(lat: float, lon: float) -> Optional[str]:
     """Return German federal state for given ``lat`` and ``lon`` using an API.
@@ -30,7 +57,7 @@ def region_from_coordinates(lat: float, lon: float) -> Optional[str]:
         )
         if response.ok:
             data = response.json()
-            return data.get("address", {}).get("state")
+            return _normalize_region(data.get("address", {}).get("state"))
     except Exception:
         return None
 
@@ -103,7 +130,7 @@ def load_region_mapping(path: str | Path = Path(__file__).with_name("ort_bundesl
                 records.append(
                     {
                         "location": name,
-                        "region": region,
+                        "region": _normalize_region(region),
                         "geo_lat": lat_f,
                         "geo_lon": lon_f,
                     }
