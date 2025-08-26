@@ -2,6 +2,45 @@ from __future__ import annotations
 
 import psycopg2
 from flask import Flask, render_template_string
+from region_mapper import region_from_coordinates
+
+BUNDESLAENDER = [
+    "Baden-Württemberg",
+    "Bayern",
+    "Berlin",
+    "Brandenburg",
+    "Bremen",
+    "Hamburg",
+    "Hessen",
+    "Mecklenburg-Vorpommern",
+    "Niedersachsen",
+    "Nordrhein-Westfalen",
+    "Rheinland-Pfalz",
+    "Saarland",
+    "Sachsen",
+    "Sachsen-Anhalt",
+    "Schleswig-Holstein",
+    "Thüringen",
+]
+
+REGION_MAP = {
+    "Baden-Württemberg": "Baden-Württemberg",
+    "Bavaria": "Bayern",
+    "Berlin": "Berlin",
+    "Brandenburg": "Brandenburg",
+    "Bremen": "Bremen",
+    "Hamburg": "Hamburg",
+    "Hesse": "Hessen",
+    "Mecklenburg-Western Pomerania": "Mecklenburg-Vorpommern",
+    "Lower Saxony": "Niedersachsen",
+    "North Rhine-Westphalia": "Nordrhein-Westfalen",
+    "Rhineland-Palatinate": "Rheinland-Pfalz",
+    "Saarland": "Saarland",
+    "Saxony": "Sachsen",
+    "Saxony-Anhalt": "Sachsen-Anhalt",
+    "Schleswig-Holstein": "Schleswig-Holstein",
+    "Thuringia": "Thüringen",
+}
 
 TEMPLATE = """
 <!DOCTYPE html>
@@ -29,6 +68,21 @@ TEMPLATE = """
                     <div class="card-body">
                         <h5 class="card-title">Insttype Verteilung</h5>
                         <canvas id="instChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Stellen nach Bundesland</h5>
+                        <ul class="list-group list-group-flush">
+                            {% for region, count in regions %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                {{ region }}
+                                <span class="badge bg-primary rounded-pill">{{ count }}</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -78,6 +132,13 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
                GROUP BY dc.insttype"""
         )
         rows = cur.fetchall()
+        cur.execute(
+            """SELECT dl.geo_lat, dl.geo_lon, COUNT(*)
+               FROM dim_location dl
+               JOIN fact_job fj ON dl.location_id = fj.location_id
+               GROUP BY dl.geo_lat, dl.geo_lon"""
+        )
+        location_rows = cur.fetchall()
         cur.close()
         conn.close()
         labels = []
@@ -87,6 +148,20 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
             counts.append(count)
         sum_counts = sum(counts) or 1
         labels = [f"{label} ({count / sum_counts * 100:.1f}%)" for label, count in zip(labels, counts)]
-        return render_template_string(TEMPLATE, total=total, labels=labels, counts=counts)
+        region_counts = {bl: 0 for bl in BUNDESLAENDER}
+        unknown = 0
+        for lat, lon, count in location_rows:
+            region = region_from_coordinates(lat, lon)
+            region = REGION_MAP.get(region)
+            if region in region_counts:
+                region_counts[region] += count
+            else:
+                unknown += count
+        regions = [(bl, region_counts[bl]) for bl in BUNDESLAENDER]
+        if unknown:
+            regions.append(("Unbekannt", unknown))
+        return render_template_string(
+            TEMPLATE, total=total, labels=labels, counts=counts, regions=regions
+        )
 
     return app
