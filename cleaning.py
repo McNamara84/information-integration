@@ -483,6 +483,7 @@ def clean_dataframe(
     progress_callback: Optional[Callable[[float], None]] = None,
     status_callback: Optional[Callable[[str], None]] = None,
     region_mapping: Optional[pd.DataFrame] = None,
+    debug: bool = False,
 ) -> pd.DataFrame:
     """Return a cleaned copy of *df* with HTML entities decoded, tags removed,
     license plates resolved, company names standardized, and PLZ extracted to separate column.
@@ -681,6 +682,29 @@ def clean_dataframe(
                     row["geo_lat"], row["geo_lon"]
                 ),
                 axis=1,
+            )
+
+    if debug:
+        missing_region = cleaned[cleaned["region"].isna()]
+        for _, row in missing_region.iterrows():
+            reasons: list[str] = []
+            loc_val = row.get("location")
+            if pd.isna(loc_val) or str(loc_val).strip() == "":
+                reasons.append("missing location")
+            if pd.isna(row.get("geo_lat")) or pd.isna(row.get("geo_lon")):
+                reasons.append("missing coordinates")
+            else:
+                reasons.append("no region match or API failure")
+            jobid = row.get("jobid", _)
+            print(
+                "[region debug] jobid=%s location=%s lat=%s lon=%s reason=%s"
+                % (
+                    jobid,
+                    loc_val,
+                    row.get("geo_lat"),
+                    row.get("geo_lon"),
+                    ", ".join(reasons) if reasons else "unknown",
+                )
             )
 
     _progress(100.0)
