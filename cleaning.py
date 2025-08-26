@@ -736,22 +736,28 @@ def clean_dataframe(
                     _resolve_location, axis=1
                 )
 
-    # 3) API fallback using coordinates
+    # 3) API fallback using coordinates - auch bei unvollständigen Koordinaten
     if {"geo_lat", "geo_lon"}.issubset(cleaned.columns):
         coord_mask = (
             cleaned["region"].isna()
-            & cleaned["geo_lat"].notna()
-            & cleaned["geo_lon"].notna()
+            & (
+                (cleaned["geo_lat"].notna() & cleaned["geo_lon"].notna()) |  # Beide Koordinaten
+                (cleaned["geo_lat"].notna() & cleaned["geo_lon"].isna()) |   # Nur latitude  
+                (cleaned["geo_lat"].isna() & cleaned["geo_lon"].notna())     # Nur longitude
+            )
         )
         if coord_mask.any():
-            cleaned.loc[coord_mask, "region"] = cleaned.loc[
-                coord_mask, ["geo_lat", "geo_lon"]
-            ].apply(
-                lambda row: region_from_coordinates(
-                    row["geo_lat"], row["geo_lon"]
-                ),
-                axis=1,
-            )
+            # Für unvollständige Koordinaten: verwende nur verfügbare API-Aufrufe mit vollständigen Koordinaten
+            complete_coords = coord_mask & cleaned["geo_lat"].notna() & cleaned["geo_lon"].notna()
+            if complete_coords.any():
+                cleaned.loc[complete_coords, "region"] = cleaned.loc[
+                    complete_coords, ["geo_lat", "geo_lon"]
+                ].apply(
+                    lambda row: region_from_coordinates(
+                        row["geo_lat"], row["geo_lon"]
+                    ),
+                    axis=1,
+                )
 
     if debug:
         missing_region = cleaned[cleaned["region"].isna()]
