@@ -483,7 +483,7 @@ def clean_dataframe(
     progress_callback: Optional[Callable[[float], None]] = None,
     status_callback: Optional[Callable[[str], None]] = None,
     region_mapping: Optional[pd.DataFrame] = None,
-    debug: bool = False,
+    debug: bool = True,
 ) -> pd.DataFrame:
     """Return a cleaned copy of *df* with HTML entities decoded, tags removed,
     license plates resolved, company names standardized, and PLZ extracted to separate column.
@@ -634,6 +634,8 @@ def clean_dataframe(
                     return None
                 if len(group) == 1:
                     return group.iloc[0]["region"]
+                
+                # Wenn Koordinaten verfügbar sind, verwende diese für die Auswahl
                 if {
                     "geo_lat",
                     "geo_lon",
@@ -645,6 +647,19 @@ def clean_dataframe(
                         + (group["geo_lon"] - row["geo_lon"]) ** 2
                     )
                     return group.loc[distances.idxmin(), "region"]
+                
+                # FALLBACK: Wenn keine Koordinaten verfügbar sind, verwende das häufigste Match
+                # oder bei eindeutigem Namen (alle Matches haben die gleiche Region) verwende diese
+                if len(group) > 1:
+                    # Überprüfe ob alle Matches zur gleichen Region gehören
+                    unique_regions = group["region"].unique()
+                    if len(unique_regions) == 1:
+                        return unique_regions[0]
+                    
+                    # Andernfalls verwende das häufigste Match
+                    region_counts = group["region"].value_counts()
+                    return region_counts.index[0]
+                
                 return None
 
             missing_mask = cleaned["region"].isna() & cleaned["location"].notna()
