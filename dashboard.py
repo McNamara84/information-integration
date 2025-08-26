@@ -81,6 +81,22 @@ TEMPLATE = """
                         <canvas id="instChart"></canvas>
                     </div>
                 </div>
+                <div class="card mt-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Top 10 der häufigsten Arbeitgeber</h5>
+                        <div id="companyCloud" class="d-flex flex-wrap justify-content-center">
+                            {% for name, count, size in top_companies %}
+                            <span
+                                class="mx-2"
+                                style="font-size: {{ size }}px;"
+                                title="{{ count }} Angebote"
+                            >
+                                {{ name }}
+                            </span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
             </div>
             <div class="col-12">
                 <div class="card">
@@ -187,6 +203,16 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
         )
         salary_rows = cur.fetchall()
         cur.execute(
+            """SELECT dc.company, COUNT(*) AS cnt
+               FROM dim_company dc
+               JOIN fact_job fj ON dc.company_id = fj.company_id
+               WHERE dc.company IS NOT NULL AND dc.company <> ''
+               GROUP BY dc.company
+               ORDER BY cnt DESC
+               LIMIT 10"""
+        )
+        top_company_rows = cur.fetchall()
+        cur.execute(
             """SELECT dl.geo_lat, dl.geo_lon, dl.plz, dc.company, fj.jobdescription
                FROM dim_location dl
                JOIN fact_job fj ON dl.location_id = fj.location_id
@@ -217,6 +243,16 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
             if region_name in salary_map and salary:
                 salary_map[region_name] = salary
         salaries = [(bl, salary_map[bl]) for bl in BUNDESLAENDER]
+        min_font, max_font = 14, 48
+        top_companies = []
+        if top_company_rows:
+            counts_only = [cnt for _, cnt in top_company_rows]
+            min_count = min(counts_only)
+            max_count = max(counts_only)
+            denom = max_count - min_count or 1
+            for name, cnt in top_company_rows:
+                size = min_font + (cnt - min_count) / denom * (max_font - min_font)
+                top_companies.append((name, cnt, round(size, 2)))
         geocoder = pgeocode.Nominatim('de')
         plz_cache: dict[str, tuple[float, float] | None] = {}
         markers = []
@@ -242,6 +278,7 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
             regions=regions,
             salaries=salaries,
             markers=markers,
+            top_companies=top_companies,
         )
 
     return app
