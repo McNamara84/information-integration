@@ -102,7 +102,8 @@ TEMPLATE = """
         const markerData = {{ markers|tojson }};
         const markerCluster = L.markerClusterGroup();
         markerData.forEach(m => {
-            markerCluster.addLayer(L.marker([m.lat, m.lon]));
+            const marker = L.marker([m.lat, m.lon]).bindPopup(`<strong>${m.company}</strong><br>${m.jobdescription}`);
+            markerCluster.addLayer(marker);
         });
         map.addLayer(markerCluster);
     </script>
@@ -146,9 +147,10 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
         )
         region_rows = cur.fetchall()
         cur.execute(
-            """SELECT dl.geo_lat, dl.geo_lon, dl.plz
+            """SELECT dl.geo_lat, dl.geo_lon, dl.plz, dc.company, fj.jobdescription
                FROM dim_location dl
-               JOIN fact_job fj ON dl.location_id = fj.location_id"""
+               JOIN fact_job fj ON dl.location_id = fj.location_id
+               JOIN dim_company dc ON dc.company_id = fj.company_id"""
         )
         marker_rows = cur.fetchall()
         cur.close()
@@ -173,9 +175,10 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
         geocoder = pgeocode.Nominatim('de')
         plz_cache: dict[str, tuple[float, float] | None] = {}
         markers = []
-        for lat, lon, plz in marker_rows:
+        for lat, lon, plz, company, description in marker_rows:
+            marker_info = {"company": company or "", "jobdescription": description or ""}
             if lat is not None and lon is not None:
-                markers.append({"lat": float(lat), "lon": float(lon)})
+                markers.append({"lat": float(lat), "lon": float(lon), **marker_info})
             elif plz:
                 coords = plz_cache.get(plz)
                 if coords is None and plz not in plz_cache:
@@ -185,7 +188,7 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
                     plz_cache[plz] = coords
                 coords = plz_cache.get(plz)
                 if coords:
-                    markers.append({"lat": coords[0], "lon": coords[1]})
+                    markers.append({"lat": coords[0], "lon": coords[1], **marker_info})
         return render_template_string(
             TEMPLATE,
             total=total,
