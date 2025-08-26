@@ -849,7 +849,19 @@ def main() -> None:
     app = QtWidgets.QApplication(sys.argv)
     if sys.platform.startswith("win"):  # pragma: no cover - Windows only
         import ctypes
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("information-integration")
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            "information-integration"
+        )
+    elif sys.platform == "darwin":  # pragma: no cover - macOS only
+        # Use the custom icon for the dock as well
+        try:
+            from AppKit import NSApplication, NSImage  # type: ignore
+
+            NSApplication.sharedApplication().setApplicationIconImage_(
+                NSImage.alloc().initWithContentsOfFile_(ICON_PATH)
+            )
+        except Exception:  # pragma: no cover - optional dependency
+            pass
     apply_modern_style(app)
 
     # Initialize the application icon after QApplication is created
