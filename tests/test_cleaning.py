@@ -419,12 +419,12 @@ def test_region_coordinates_match_sql_first():
         mock_coords.assert_not_called()
 
 
-def test_region_ambiguous_locations_use_coordinates():
-    """Ambiguous place names should fall back to coordinate-based lookup."""
+def test_region_ambiguous_locations_choose_nearest():
+    """Ambiguous place names should pick the closest coordinate match."""
     with patch('cleaning.fetch_german_license_plates') as mock_fetch, \
          patch('cleaning.region_from_coordinates') as mock_coords:
         mock_fetch.return_value = {}
-        mock_coords.return_value = "Berlin"
+        mock_coords.return_value = "ShouldNotBeCalled"
 
         df = pd.DataFrame({
             "jobid": [1],
@@ -437,11 +437,13 @@ def test_region_ambiguous_locations_use_coordinates():
             {
                 "location": ["Berlin", "Berlin"],
                 "region": ["Schleswig-Holstein", "Berlin"],
+                "geo_lat": [54.0, 52.52],
+                "geo_lon": [9.0, 13.405],
             }
         )
 
         cleaned = clean_dataframe(df, region_mapping=mapping)
 
         assert cleaned.loc[0, "region"] == "Berlin"
-        mock_coords.assert_called_once()
+        mock_coords.assert_not_called()
 

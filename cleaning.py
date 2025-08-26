@@ -614,31 +614,54 @@ def clean_dataframe(
             ]
 
         # 2) match by location if still missing
-        region_counts = region_mapping.groupby("location")["region"].nunique()
-        ambiguous_locations = region_counts[region_counts > 1].index
-        unique_mapping = region_mapping[~region_mapping["location"].isin(ambiguous_locations)]
-        location_map = (
-            unique_mapping.drop_duplicates("location").set_index("location")["region"]
-        )
-
-        missing_mask = cleaned["region"].isna() & cleaned["location"].notna()
-        if missing_mask.any():
-            cleaned.loc[missing_mask, "region"] = cleaned.loc[
-                missing_mask, "location"
-            ].map(location_map)
-
-        # optional fuzzy matching for remaining
-        missing_mask = cleaned["region"].isna() & cleaned["location"].notna()
-        if missing_mask.any():
-            missing_locations = (
-                cleaned.loc[missing_mask, "location"].dropna().astype(str).unique()
-            )
-            fuzzy_cache = {
-                loc: match_region_fuzzy(loc, unique_mapping) for loc in missing_locations
+        if "location" in region_mapping.columns:
+            location_groups = {
+                loc: grp for loc, grp in region_mapping.groupby("location")
             }
-            cleaned.loc[missing_mask, "region"] = cleaned.loc[
-                missing_mask, "location"
-            ].map(fuzzy_cache)
+
+            def _resolve_location(row):
+                group = location_groups.get(row["location"])
+                if group is None:
+                    return None
+                if len(group) == 1:
+                    return group.iloc[0]["region"]
+                if {
+                    "geo_lat",
+                    "geo_lon",
+                }.issubset(group.columns) and pd.notna(row.get("geo_lat")) and pd.notna(
+                    row.get("geo_lon")
+                ):
+                    distances = (
+                        (group["geo_lat"] - row["geo_lat"]) ** 2
+                        + (group["geo_lon"] - row["geo_lon"]) ** 2
+                    )
+                    return group.loc[distances.idxmin(), "region"]
+                return None
+
+            missing_mask = cleaned["region"].isna() & cleaned["location"].notna()
+            if missing_mask.any():
+                cleaned.loc[missing_mask, "region"] = cleaned.loc[missing_mask].apply(
+                    _resolve_location, axis=1
+                )
+
+            # optional fuzzy matching for remaining using unique mapping
+            region_counts = region_mapping.groupby("location")["region"].nunique()
+            ambiguous_locations = region_counts[region_counts > 1].index
+            unique_mapping = region_mapping[
+                ~region_mapping["location"].isin(ambiguous_locations)
+            ]
+
+            missing_mask = cleaned["region"].isna() & cleaned["location"].notna()
+            if missing_mask.any():
+                missing_locations = (
+                    cleaned.loc[missing_mask, "location"].dropna().astype(str).unique()
+                )
+                fuzzy_cache = {
+                    loc: match_region_fuzzy(loc, unique_mapping) for loc in missing_locations
+                }
+                cleaned.loc[missing_mask, "region"] = cleaned.loc[
+                    missing_mask, "location"
+                ].map(fuzzy_cache)
 
         # 3) API fallback using coordinates
         if {"geo_lat", "geo_lon"}.issubset(cleaned.columns):
