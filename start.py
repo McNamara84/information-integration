@@ -26,7 +26,7 @@ from cleaning import (
     prepare_duplicates_export,
     format_export_columns,
 )
-from data_warehouse import create_data_warehouse
+from data_warehouse import create_data_warehouse, is_data_warehouse_initialized
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from werkzeug.serving import BaseWSGIServer
@@ -788,6 +788,23 @@ class DataWarehouseWindow(QtWidgets.QDialog):
             return
 
         self._save_settings(info)
+
+        try:
+            if is_data_warehouse_initialized(self._dataframe, info):
+                skip = True
+                if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+                    result = QtWidgets.QMessageBox.question(
+                        self,
+                        "Datenbank vorhanden",
+                        "Alle Tabellen sind bereits vorhanden und enthalten die erwartete Anzahl an Datensätzen.\n"
+                        "Möchten Sie die Erstellung überspringen?",
+                    )
+                    skip = result == QtWidgets.QMessageBox.StandardButton.Yes
+                if skip:
+                    self.accept()
+                    return
+        except psycopg2.Error:
+            pass
 
         self._create_button.setEnabled(False)
         self._status.show()
