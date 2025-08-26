@@ -578,16 +578,19 @@ def clean_dataframe(
     _progress(90.0)
 
     # Enrich with region information
-    if region_mapping is None and "location" in cleaned.columns:
-        _status("Lade Regionszuordnung...")
+    if region_mapping is None:
+        if _status:
+            _status("Lade Regionszuordnung...")
         try:
             region_mapping = load_region_mapping()
         except FileNotFoundError:
             region_mapping = None
 
-    if region_mapping is not None and "location" in cleaned.columns:
-        _status("Bestimme Regionen...")
+    if "region" not in cleaned.columns:
         cleaned["region"] = None
+
+    if region_mapping is not None:
+        _status("Bestimme Regionen...")
 
         # 1) exact coordinate mapping using SQL dump
         if {
@@ -614,7 +617,7 @@ def clean_dataframe(
             ]
 
         # 2) match by location if still missing
-        if "location" in region_mapping.columns:
+        if "location" in cleaned.columns and "location" in region_mapping.columns:
             location_groups = {
                 loc: grp for loc, grp in region_mapping.groupby("location")
             }
@@ -663,22 +666,22 @@ def clean_dataframe(
                     missing_mask, "location"
                 ].map(fuzzy_cache)
 
-        # 3) API fallback using coordinates
-        if {"geo_lat", "geo_lon"}.issubset(cleaned.columns):
-            coord_mask = (
-                cleaned["region"].isna()
-                & cleaned["geo_lat"].notna()
-                & cleaned["geo_lon"].notna()
+    # 3) API fallback using coordinates
+    if {"geo_lat", "geo_lon"}.issubset(cleaned.columns):
+        coord_mask = (
+            cleaned["region"].isna()
+            & cleaned["geo_lat"].notna()
+            & cleaned["geo_lon"].notna()
+        )
+        if coord_mask.any():
+            cleaned.loc[coord_mask, "region"] = cleaned.loc[
+                coord_mask, ["geo_lat", "geo_lon"]
+            ].apply(
+                lambda row: region_from_coordinates(
+                    row["geo_lat"], row["geo_lon"]
+                ),
+                axis=1,
             )
-            if coord_mask.any():
-                cleaned.loc[coord_mask, "region"] = cleaned.loc[
-                    coord_mask, ["geo_lat", "geo_lon"]
-                ].apply(
-                    lambda row: region_from_coordinates(
-                        row["geo_lat"], row["geo_lon"]
-                    ),
-                    axis=1,
-                )
 
     _progress(100.0)
     return cleaned

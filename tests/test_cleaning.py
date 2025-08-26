@@ -447,3 +447,21 @@ def test_region_ambiguous_locations_choose_nearest():
         assert cleaned.loc[0, "region"] == "Berlin"
         mock_coords.assert_not_called()
 
+
+def test_region_api_fallback_without_location_column():
+    """When only coordinates are available, API fallback should determine the region."""
+    with patch('cleaning.fetch_german_license_plates') as mock_fetch, \
+         patch('cleaning.load_region_mapping') as mock_mapping, \
+         patch('cleaning.region_from_coordinates') as mock_coords:
+        mock_fetch.return_value = {}
+        mock_mapping.return_value = pd.DataFrame()
+        mock_coords.return_value = "Berlin"
+
+        df = pd.DataFrame({"geo_lat": [52.52], "geo_lon": [13.405]})
+
+        cleaned = clean_dataframe(df)
+
+        assert cleaned.loc[0, "region"] == "Berlin"
+        mock_fetch.assert_not_called()
+        mock_coords.assert_called_once()
+
