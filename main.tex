@@ -11,9 +11,16 @@
 \usepackage{microtype}
 \usepackage{listings}
 \lstset{
-    basicstyle=\ttfamily,
+    basicstyle=\small\ttfamily,  % Kleinere Schriftgröße global
+    breaklines=true,              % Automatischer Zeilenumbruch
+    breakatwhitespace=true,       % Umbruch nur bei Leerzeichen
+    columns=flexible,             % Flexiblere Spaltenbreite
+    keepspaces=true,              % Leerzeichen beibehalten
+    xleftmargin=0pt,              % Kein zusätzlicher linker Rand
+    xrightmargin=0pt,             % Kein zusätzlicher rechter Rand
     literate={Ö}{{\"O}}1 {Ä}{{\"A}}1 {Ü}{{\"U}}1 {ß}{{\ss}}1 {ü}{{\"u}}1 {ä}{{\"a}}1 {ö}{{\"o}}1
 }
+
 \usepackage{longtable}
 \usepackage{booktabs}
 \usepackage{xcolor}
@@ -21,7 +28,6 @@
 \usepackage{setspace}
 \usepackage[hidelinks]{hyperref}
 \usepackage{csquotes}
-\usepackage{graphicx}
 \usepackage{svg}
 \usepackage[backend=biber,style=authoryear,language=german]{biblatex}
 \addbibresource{refs/refs.bib}
@@ -105,74 +111,122 @@
 
 \chapter{Problemstellung}
 
-Im Rahmen einer Arbeitsmarktanalyse sollen für das Berufsfeld Bibliotheks- und Informationswissenschaft Metadaten von Stellenanzeigen statistisch ausgewertet werden. Die Rohdaten umfassen rund 23\,000 Datensätze aus den Jahren 2014--2025 und liegen als CSV-Datei \texttt{bibliojobs\_raw.csv} mit elf Metadatenfeldern und dem Feldtrenner \texttt{\_§\_} vor.
+Die vorliegende Arbeit befasst sich mit der statistischen Auswertung von Metadaten aus Stellenanzeigen des Berufsfeldes Bibliotheks- und Informationswissenschaft. Als Datengrundlage dient eine umfassende Sammlung von circa 23.000 Stellenausschreibungen aus dem Zeitraum 2014 bis 2025, die in Form einer CSV-Datei (\texttt{bibliojobs\_raw.csv}) vorliegt. Diese Rohdaten enthalten elf Metadatenfelder, darunter Informationen zu Arbeitsort, Arbeitgebername, Stellenbeschreibung und Ausschreibungsdatum, wobei als Feldtrennzeichen die Zeichenfolge \texttt{\_§\_} verwendet wird.
 
-Zur Vorbereitung eines Imports in ein Data Warehouse werden die Metadaten bereinigt, homogenisiert und angereichert. Die Bereinigung konzentriert sich auf die Felder \texttt{\_LOCATION\_} und \texttt{\_COMPANY\_}, während ein umfassendes Data Profiling alle Attribute auf Inkonsistenzen untersucht und relative Häufigkeiten sowie Fehlertypen in einer Exceltabelle dokumentiert.
+Die zentrale Problemstellung dieser Arbeit liegt in der Vorbereitung und Optimierung der vorliegenden Rohdaten für eine aussagekräftige Arbeitsmarktanalyse. Hierbei sind mehrere Herausforderungen zu bewältigen: Erstens erfordern die Rohdaten eine systematische Bereinigung und Homogenisierung, insbesondere der Metadatenfelder Arbeitsort (\texttt{\_LOCATION\_}) und Arbeitgebername (\texttt{\_COMPANY\_}). Zweitens ist eine umfassende Qualitätsprüfung aller Attribute mittels Data Profiling notwendig, um Inkonsistenzen und Datenfehler zu identifizieren und zu dokumentieren. Drittens müssen inhaltliche Dubletten, die durch Mehrfachausschreibungen derselben Stelle entstehen, erkannt und aus dem Analysedatensatz entfernt werden.
 
-Darüber hinaus sollen inhaltliche Dubletten identifiziert, aus dem Analysedatensatz entfernt und in einer separaten CSV-Datei gespeichert werden. Die Orte werden mittels der SQL-Datei \texttt{ort\_bundesland.sql} um das Attribut \texttt{\_REGION\_} erweitert, und aus dem Freitextfeld \texttt{\_JOBTERMS\_} werden Informationen zu Befristung, Arbeitszeit und Vergütung extrahiert. Kann ein Ort über das Mapping nicht zugeordnet werden, ermittelt eine Koordinatenanalyse mit dem Offline-Datensatz \texttt{reverse\_geocoder} das Bundesland. Der bereinigte und angereicherte Datensatz kann als Exceltabelle oder als CSV-Datei mit dem Feldtrenner \texttt{\_§\_} exportiert oder in ein PostgreSQL-basiertes DWH überführt und dort unter Anwendung eines Sternschemas statistisch analysiert werden.
+Darüber hinaus soll eine Datenanreicherung erfolgen, bei der die Ortsinformationen durch Verknüpfung mit einer externen MySQL-Datenbank (\texttt{ort\_bundesland.sql}) um regionale Zuordnungen erweitert werden. Zusätzlich ist geplant, aus den Freitextfeldern der Stellenbeschreibungen (\texttt{\_JOBTERMS\_}) strukturierte Informationen zu Befristung, Arbeitszeit (Vollzeit/Teilzeit) und Vergütung zu extrahieren und als separate Attribute zu erfassen.
+
+Das Ziel dieser Arbeit besteht darin, durch die beschriebenen Datenverarbeitungsschritte die Spalten \texttt{\_LOCATION\_} und  \texttt{\_COMPANY\_} zu bereinigen, anzureichern und anschließend alle Datensätze in ein PostgreSQL-basiertes Data Warehouse zu importieren und mittels eines Sternschemas für statistische Analysen aufzubereiten.
 
 
-\chapter{Herangehensweise}
+\chapter{Methodik}
 
-Die Umsetzung des Datenintegrationsprozesses erfolgt in einer isolierten Python-Umgebung mit den Bibliotheken \texttt{pandas}, \texttt{numpy}, \texttt{openpyxl}, \texttt{rapidfuzz}, \texttt{scikit-learn}, \texttt{sqlalchemy}, \texttt{mysqlclient}, \texttt{psycopg2-binary}, \texttt{nltk} und \texttt{requests}.
+Die methodische Umsetzung des Datenintegrationsprozesses erfolgt in einer isolierten Python-Entwicklungsumgebung unter Verwendung spezialisierter Bibliotheken für Datenmanipulation (\texttt{pandas}, \texttt{numpy}), Dateiverarbeitung (\texttt{openpyxl}), Ähnlichkeitsberechnung (\texttt{rapidfuzz}), maschinelles Lernen (\texttt{scikit-learn}), Datenbankanbindung (\texttt{sqlalchemy}, \texttt{mysqlclient}, \texttt{psycopg2-binary}), Textverarbeitung (\texttt{nltk}) sowie Netzwerkkommunikation (\texttt{requests}).
 
-Die Rohdaten liegen als CSV-Datei mit dem Feldtrenner \texttt{\_§\_} vor und werden mit \texttt{pandas.read\_csv} unter expliziter UTF-8-Kodierung eingelesen. Im Anschluss werden führende sowie abschließende Unterstriche aus den Spaltennamen entfernt und numerische Datentypen, etwa \texttt{jobid} sowie die Koordinaten \texttt{geo\_lat} und \texttt{geo\_lon}, korrekt konvertiert; das Datumsfeld \texttt{date} wird in ein standardisiertes Zeitformat überführt. Dabei wird geprüft, ob die Normalisierung der Spaltennamen zu Dubletten führt. Nicht konvertierbare \texttt{jobid}- und Datumswerte werden protokolliert, um potenzielle Datenqualitätsprobleme sichtbar zu machen. Diese Normalisierung schafft eine konsistente Basis für alle weiteren Verarbeitungsschritte.
+\section{Datenvorverarbeitung und -normalisierung}
 
-Zunächst wird ein umfangreiches Data Profiling durchgeführt, das strukturelle und inhaltliche Anomalien der Ausgangsdaten sichtbar macht. Auf dieser Grundlage folgen schrittweise Bereinigungen und Normalisierungen, wobei \texttt{rapidfuzz} zur Erkennung und Zusammenführung von Dubletten eingesetzt wird. Eine Fortschrittsanzeige visualisiert dabei den Status der einzelnen Bereinigungsschritte. Die Kandidatensuche nutzt TF-IDF-Vektorisierung und Nearest-Neighbor-Algorithmen aus \texttt{scikit-learn}. Für die Anreicherung der Daten mit regionalen Informationen wird die lokale Referenzdatei \texttt{ort\_bundesland.sql} eingelesen und mit \texttt{sqlalchemy} verknüpft; bleibt eine Zuordnung aus, bestimmt \texttt{reverse\_geocoder} anhand vorhandener Koordinaten das Bundesland. Abschließend ermöglichen Skripte zur Extraktion von Freitextinformationen die Überführung unstrukturierter Angaben in auswertbare Felder. Diese methodische Kette gewährleistet eine transparente und reproduzierbare Aufbereitung des Datensatzes.
+Die initiale Datenaufbereitung beginnt mit dem strukturierten Einlesen der Rohdaten aus der CSV-Datei unter Verwendung des spezifischen Feldtrennzeichens \texttt{\_§\_}. Hierbei wird explizit die UTF-8-Kodierung spezifiziert, um Zeichensatzprobleme zu vermeiden. Im Rahmen der Datennormalisierung werden systematisch führende und nachfolgende Unterstriche aus den Spaltennamen entfernt, um eine konsistente Namenskonvention zu gewährleisten. Anschließend erfolgt die Konvertierung numerischer Attribute wie \texttt{jobid}, \texttt{geo\_lat} und \texttt{geo\_lon} in die entsprechenden Datentypen, während das Datumsfeld \texttt{date} in ein standardisiertes Zeitformat überführt wird.
 
-Im Hauptfenster der Anwendung steht dafür ein Button \glqq Data Profiling\grqq{} zur Verfügung. Nach dem Einlesen der CSV-Datei öffnet ein Klick darauf ein übersichtliches Dashboard, das für jede Spalte Zeilenzahl, fehlende sowie eindeutige Werte, relative Häufigkeiten und häufige Fehlerindikatoren darstellt. Die Breite des Fensters orientiert sich automatisch an den Spaltenbreiten und nutzt maximal die verfügbare Bildschirmbreite, sodass horizontales Scrollen in der Regel entfällt. Auf diese Weise lassen sich Datenqualitätsprobleme frühzeitig erkennen und gezielt beheben.
-Während der Bereinigung informiert eine Fortschrittsleiste über den Status der einzelnen Schritte.
+Ein wesentlicher Aspekt dieser Vorverarbeitung ist die systematische Validierung der Spaltennormalisierung auf potenzielle Dubletten sowie die Protokollierung nicht konvertierbarer \texttt{jobid}- und Datumswerte. Diese Maßnahmen dienen der frühzeitigen Identifikation von Datenqualitätsproblemen und schaffen eine konsistente Datenbasis für alle nachgelagerten Verarbeitungsschritte.
 
-Nach Abschluss der Bereinigung kann der Datensatz als Exceltabelle oder als CSV-Datei mit dem Feldtrenner \texttt{\_§\_} exportiert werden. Anschließend wird der Button \glqq Dubletten finden\grqq{} freigeschaltet. Die Dublettensuche kombiniert ein Fuzzy-Matching über \texttt{jobdescription}, \texttt{company}, \texttt{location}, \texttt{plz}, \texttt{salary} sowie die geographischen Koordinaten mit exakten Vergleichen der Felder \texttt{jobtype}, \texttt{insttype}, \texttt{country}, \texttt{fixedterm} und \texttt{workinghours}. Kandidaten werden mittels TF-IDF-Vektorisierung und Nearest-Neighbor-Suche ermittelt; Duplikate werden nur bei einer Übereinstimmung von 100\,\% tabellarisch in einem separaten Fenster \glqq Gefundene Dubletten\grqq{} dargestellt.
+\section{Data Profiling und Qualitätsbewertung}
 
-Nachdem mindestens eine Dublette entfernt wurde, blendet die Anwendung einen weiteren Button \glqq Datenbank initialisieren\grqq{} ein. Ein Dialog fragt die Verbindungsdaten inklusive numerischem Port ab und legt auf einem PostgreSQL-Server ein Data Warehouse nach Sternschema an. Dabei entstehen Dimensionstabellen für Unternehmen, Orte und Jobtypen sowie die Faktentabelle \texttt{fact\_job}, die mit dem bereinigten, dublettenfreien Datensatz gefüllt werden. Während des Imports informiert ein Ladebalken mit Statusmeldungen über die aktuellen Schritte, da der Vorgang einige Zeit in Anspruch nehmen kann.
+Das Data Profiling stellt einen fundamentalen Baustein der Datenqualitätsbewertung dar und wird über eine benutzerfreundliche grafische Oberfläche realisiert. Das implementierte Dashboard bietet eine umfassende Analyse jeder Datenspalte, einschließlich Zeilenzahl, Anzahl fehlender und eindeutiger Werte, relativer Häufigkeitsverteilungen sowie der Identifikation häufiger Fehlerindikatoren. Die Fensterbreite wird automatisch an die Spaltenbreiten angepasst und nutzt die maximal verfügbare Bildschirmbreite, um horizontales Scrollen zu minimieren und eine optimale Benutzererfahrung zu gewährleisten.
 
-Voraussetzung ist ein laufender PostgreSQL-Server auf dem angegebenen Host und Port. Ist keine Verbindung möglich, weist eine Fehlermeldung auf das Problem hin.
+\section{Datenbereinigung und Dublettenidentifikation}
+
+Die systematische Datenbereinigung erfolgt schrittweise unter Verwendung fortgeschrittener Algorithmen zur Ähnlichkeitsberechnung. Dabei kommt \texttt{rapidfuzz} für die Erkennung und Zusammenführung von Dubletten zum Einsatz, während eine integrierte Fortschrittsanzeige den Status der einzelnen Bereinigungsschritte visualisiert. Die Kandidatenidentifikation basiert auf TF-IDF-Vektorisierung in Kombination mit Nearest-Neighbor-Algorithmen aus der \texttt{scikit-learn}-Bibliothek.
+
+Die Dublettensuche implementiert einen hybriden Ansatz, der Fuzzy-Matching für die Attribute \texttt{jobdescription}, \texttt{company}, \texttt{location}, \texttt{plz}, \texttt{salary} und die geografischen Koordinaten mit exakten Vergleichen der strukturierten Felder \texttt{jobtype}, \texttt{insttype}, \texttt{country}, \texttt{fixedterm} und \texttt{workinghours} kombiniert. Duplikate werden ausschließlich bei einer Übereinstimmung von 100\,\% als solche klassifiziert und in einem separaten Fenster zur manuellen Validierung dargestellt.
+
+\section{Datenanreicherung und regionale Zuordnung}
+
+Die Anreicherung der Datensätze um regionale Informationen erfolgt durch die Integration einer lokalen Referenzdatei \texttt{ort\_bundesland.sql}, die mittels \texttt{sqlalchemy} verknüpft wird. Für Datensätze ohne erfolgreiche Zuordnung wird das \texttt{reverse\_geocoder}-Modul eingesetzt, um anhand vorhandener Koordinaten die entsprechenden Bundesländer zu bestimmen. Diese mehrstufige Zuordnungsstrategie maximiert die Vollständigkeit der regionalen Klassifikation.
+
+Zusätzlich ermöglichen spezialisierte Extraktionsalgorithmen die Überführung unstrukturierter Informationen aus Freitextfeldern in auswertbare, strukturierte Attribute. Diese methodische Vorgehensweise gewährleistet eine transparente und reproduzierbare Aufbereitung des gesamten Datensatzes.
+
+\section{Data Warehouse-Implementierung}
+
+Nach erfolgreicher Datenbereinigung und -anreicherung erfolgt die Überführung in ein PostgreSQL-basiertes Data Warehouse unter Anwendung eines Sternschemas. Die Implementierung umfasst die automatisierte Erstellung von Dimensionstabellen für Unternehmen, Orte und Jobtypen sowie der zentralen Faktentabelle \texttt{fact\_job}. Ein integrierter Ladebalken mit detaillierten Statusmeldungen informiert über den Fortschritt des Importvorgangs, der aufgrund des Datenvolumens entsprechende Verarbeitungszeit beansprucht.
 
 \begin{figure}[h]
     \centering
     \includegraphics[width=\textwidth]{er-diagram.png}
-    \caption{ER-Diagramm des Data Warehouses}
+    \caption{ER-Diagramm des implementierten Data Warehouses}
     \label{fig:er-diagram}
 \end{figure}
 
-Zur Benennung der Fehlertypen wurde die Klassifikation von Naumann und Leser genutzt, die in den folgenden beiden Abschnitten beschrieben werden.
+\section{Klassifikation von Datenqualitätsfehlern}
 
-\section{Fehler auf Schemaebene}
+Zur systematischen Kategorisierung von Datenqualitätsproblemen wird die etablierte Fehlerklassifikation von \cite{leser2007informationsintegration} angewendet, die zwischen Fehlern auf Schema- und Datenebene differenziert und in den nachfolgenden Abschnitten detailliert beschrieben wird.
 
-\textbf{Unzulässige Werte} entstehen, wenn Datenwerte außerhalb der für ein Attribut definierten Domäne liegen. Ein typisches Beispiel wäre ein Geburtsdatum wie \texttt{32.1.1997}, bei dem der Tag außerhalb des gültigen Bereichs von 1--31 liegt. Solche Fehler lassen sich durch Wertebereich-Validierungen und Format-Prüfungen systematisch identifizieren.
+\subsection{Fehler auf Schemaebene}
 
-\textbf{Verletzte Attributabhängigkeiten} treten auf, wenn vordefinierte Beziehungen zwischen Attributwerten nicht eingehalten werden. Dies zeigt sich beispielsweise, wenn das Alter einer Person mit 17 Jahren angegeben ist, das Geburtsdatum jedoch auf den 2.1.1970 datiert ist. Programmatisch erfordern solche Fehler Cross-Field-Validierungen zwischen abhängigen Datenfeldern.
+\textbf{Unzulässige Werte} manifestieren sich, wenn Datenwerte außerhalb der für ein Attribut definierten Wertedomäne liegen. Exemplarisch wäre ein Geburtsdatum wie \texttt{32.1.1997} zu nennen, bei dem der Tageswert den gültigen Bereich von 1--31 überschreitet. Die systematische Identifikation solcher Anomalien erfolgt durch Wertebereich-Validierungen und Format-Prüfungen.
 
-\textbf{Eindeutigkeitsverletzungen} entstehen in Attributen, die als eindeutig gekennzeichnet sind, aber dennoch mehrfach vorkommende Werte enthalten. Dies betrifft insbesondere Primärschlüssel oder andere Unique-Constraints und lässt sich durch Duplikat-Erkennung in entsprechenden Spalten aufdecken.
+\textbf{Verletzte Attributabhängigkeiten} treten auf, wenn vordefinierte semantische Beziehungen zwischen Attributwerten nicht eingehalten werden. Dies manifestiert sich beispielsweise, wenn das Alter einer Person mit 17 Jahren angegeben wird, das korrespondierende Geburtsdatum jedoch auf den 2.1.1970 datiert ist. Die programmtechnische Erkennung erfordert Cross-Field-Validierungen zwischen abhängigen Datenfeldern.
 
-\textbf{Verletzte referenzielle Integrität} liegt vor, wenn Fremdschlüssel-Werte in referenzierten Tabellen nicht existieren. Solche Inkonsistenzen entstehen häufig bei unvollständigen Datenmigrationen oder fehlerhaften Löschoperationen und erfordern Join-Operationen zur Validierung der Referenzen.
+\textbf{Eindeutigkeitsverletzungen} entstehen in Attributen mit Unique-Constraint, die dennoch mehrfach vorkommende Werte enthalten. Dies betrifft insbesondere Primärschlüssel oder andere Eindeutigkeitsbeschränkungen und lässt sich durch Duplikatserkennung in entsprechenden Spalten systematisch aufdecken.
 
-\section{Fehler auf Datenebene}
+\textbf{Verletzte referenzielle Integrität} liegt vor, wenn Fremdschlüsselwerte in den referenzierten Tabellen nicht existieren. Solche Inkonsistenzen entstehen häufig bei unvollständigen Datenmigrationen oder fehlerhaften Löschoperationen und erfordern Join-Operationen zur Validierung der Referenzen.
 
-\textbf{Fehlende Werte} manifestieren sich als NULL-Werte in Situationen, wo eigentlich Informationen verfügbar sein sollten. Problematisch wird dies besonders bei manueller Dateneingabe, wo oft Dummy-Werte wie \texttt{AAA} oder \texttt{999-999} verwendet werden, um NULL-Constraints zu umgehen. Diese Dummy-Werte sind meist nicht eindeutig definiert und erschweren die Identifikation und Bereinigung erheblich.
+\subsection{Fehler auf Datenebene}
 
-\textbf{Schreibfehler} entstehen sowohl bei manueller Dateneingabe als auch bei automatischer Schrifterkennung. Typische Beispiele sind Ortsnamen wie \texttt{Babbelsberg} statt \texttt{Babelsberg}. Solche Fehler lassen sich durch Domänenexperten erkennen und mit Hilfe von Rechtschreibprüfungen oder Ähnlichkeitsmaßen wie der Levenshtein-Distanz systematisch aufspüren.
+\textbf{Fehlende Werte} manifestieren sich als NULL-Werte in Kontexten, wo eigentlich Informationen verfügbar sein sollten. Besonders problematisch gestaltet sich dies bei manueller Dateneingabe, wo häufig Dummy-Werte wie \texttt{AAA} oder \texttt{999-999} zur Umgehung von NOT-NULL-Constraints verwendet werden. Diese Dummy-Werte sind meist nicht eindeutig definiert und erschweren die Identifikation und Bereinigung erheblich.
 
-\textbf{Falsche Werte} entsprechen nicht den tatsächlichen Gegebenheiten der realen Welt, auch wenn sie syntaktisch korrekt erscheinen. Ein Beispiel wäre ein Filmtitel \texttt{Ben Hur} mit dem Produktionsjahr 1931, obwohl der Film tatsächlich 1959 produziert wurde. Diese Fehlerart ist besonders schwer zu erkennen, da sie externe Referenzdaten zur Validierung erfordert und oft erst durch Beobachtung der realen Welt überprüfbar wird.
+\textbf{Schreibfehler} entstehen sowohl bei manueller Dateneingabe als auch bei automatischen Erkennungsverfahren. Typische Beispiele umfassen Ortsnamen wie \texttt{Babbelsberg} anstelle von \texttt{Babelsberg}. Die systematische Erkennung erfolgt durch Domänenexperten sowie mittels Rechtschreibprüfungen oder Ähnlichkeitsmaßen wie der Levenshtein-Distanz.
 
-\textbf{Falsche Referenzen} treten auf, wenn Verweise zwischen Datensätzen semantisch inkorrekt sind, obwohl sie syntaktisch gültig erscheinen. Dies kann bei automatischen Verknüpfungen entstehen, wenn Algorithmen falsche Zuordnungen zwischen Entitäten herstellen.
+\textbf{Falsche Werte} entsprechen nicht den tatsächlichen Gegebenheiten der realen Welt, obwohl sie syntaktisch korrekt erscheinen. Exemplarisch wäre ein Filmtitel \texttt{Ben Hur} mit dem Produktionsjahr 1931 zu nennen, obwohl der Film tatsächlich 1959 produziert wurde. Diese Fehlerart ist besonders schwer identifizierbar, da sie externe Referenzdaten zur Validierung erfordert.
 
-\textbf{Kryptische Werte} sind für Menschen schwer interpretierbare Codes oder Abkürzungen ohne entsprechende Dokumentation. Solche Werte entstehen oft in Legacy-Systemen oder bei unvollständiger Datenmigration, wo Codetabellen verloren gehen.
+\textbf{Falsche Referenzen} treten auf, wenn Verweise zwischen Datensätzen semantisch inkorrekt sind, obwohl sie syntaktisch gültig erscheinen. Diese können bei automatischen Verknüpfungsalgorithmen entstehen, die falsche Zuordnungen zwischen Entitäten herstellen.
 
-\textbf{Eingebettete Werte} bezeichnen Situationen, wo mehrere logische Informationen in einem einzigen Datenfeld gespeichert sind. Ein typisches Beispiel wäre ein Adressfeld, das Straße, Hausnummer und Postleitzahl in einem String kombiniert, was die separate Verarbeitung dieser Komponenten erschwert.
+\textbf{Kryptische Werte} bezeichnen für Menschen schwer interpretierbare Codes oder Abkürzungen ohne entsprechende Dokumentation. Solche Werte entstehen oft in Legacy-Systemen oder bei unvollständiger Datenmigration mit verloren gegangenen Codetabellen.
 
-\textbf{Falsche Zuordnungen} entstehen, wenn Datenwerte in falschen Attributspalten gespeichert werden. Dies kann bei Import-Prozessen auftreten, wenn Spalten-Mappings fehlerhaft definiert sind oder Datenformate nicht korrekt interpretiert werden.
+\textbf{Eingebettete Werte} charakterisieren Situationen, in denen mehrere logische Informationen in einem einzigen Datenfeld gespeichert sind. Ein typisches Beispiel stellt ein Adressfeld dar, das Straße, Hausnummer und Postleitzahl in einem String kombiniert und damit die separate Verarbeitung dieser Komponenten erschwert.
 
-\textbf{Widersprüchliche Werte} liegen vor, wenn innerhalb desselben Datensatzes logisch unvereinbare Informationen existieren. Ein Beispiel wäre eine Person mit dem Geschlecht \texttt{männlich} und dem Titel \texttt{Frau}, was semantisch inkonsistent ist.
+\textbf{Falsche Zuordnungen} entstehen, wenn Datenwerte in falschen Attributspalten gespeichert werden. Dies kann bei Import-Prozessen auftreten, wenn Spalten-Mappings fehlerhaft definiert oder Datenformate nicht korrekt interpretiert werden.
 
-\textbf{Transpositionen} bezeichnen die Vertauschung von Werten zwischen verschiedenen Attributen eines Datensatzes. Typisch wäre die Vertauschung von Vor- und Nachname oder die falsche Zuordnung von Koordinaten zu Längen- und Breitengrad.
+\textbf{Widersprüchliche Werte} liegen vor, wenn innerhalb desselben Datensatzes logisch unvereinbare Informationen existieren. Exemplarisch wäre eine Person mit dem Geschlecht \texttt{männlich} und dem Titel \texttt{Frau} zu nennen, was semantisch inkonsistent ist.
 
-\textbf{Duplikate} sind mehrfache Repräsentationen desselben realen Objekts innerhalb einer Datenquelle. Diese können durch wiederholte Eingabe, fehlerhafte Import-Prozesse oder unvollständige Bereinigungsverfahren entstehen und beeinträchtigen die Datenqualität erheblich.
+\textbf{Transpositionen} bezeichnen die Vertauschung von Werten zwischen verschiedenen Attributen eines Datensatzes. Typische Beispiele umfassen die Vertauschung von Vor- und Nachname oder die falsche Zuordnung von Koordinaten zu Längen- und Breitengrad.
 
-\textbf{Datenkonflikte} entstehen, wenn verschiedene Versionen derselben Information in einem Datensatz koexistieren, ohne dass klar ist, welche Version korrekt oder aktuell ist. Dies tritt häufig bei zeitlichen Datenaktualisierungen auf, wenn alte Werte nicht ordnungsgemäß überschrieben werden.
+\textbf{Duplikate} stellen mehrfache Repräsentationen desselben realen Objekts innerhalb einer Datenquelle dar. Diese können durch wiederholte Eingabe, fehlerhafte Import-Prozesse oder unvollständige Bereinigungsverfahren entstehen und beeinträchtigen die Datenqualität erheblich.
+
+\textbf{Datenkonflikte} entstehen, wenn verschiedene Versionen derselben Information in einem Datensatz koexistieren, ohne dass Klarheit über die korrekte oder aktuelle Version besteht. Dies tritt häufig bei zeitlichen Datenaktualisierungen auf, wenn alte Werte nicht ordnungsgemäß überschrieben werden.
 
 \chapter{Kritische Betrachtung der Ergebnisse}
+Die durchgeführte Datenintegration und -bereinigung der Stellenanzeigendaten zeigt sowohl erhebliche Verbesserungen der Datenqualität als auch verbleibende Herausforderungen, die einer differenzierten Betrachtung bedürfen.
+
+\section{Erfolge der Datenbereinigung}
+Die Transformation der Rohdaten demonstriert signifikante Fortschritte in mehreren Bereichen. Besonders hervorzuheben ist die Normalisierung der Ortskennzeichen, wobei Abkürzungen wie \texttt{MZ}, \texttt{TR} und \texttt{KO} erfolgreich in ihre Vollformen \texttt{Mainz}, \texttt{Trier} und \texttt{Koblenz} überführt wurden. 
+Die Bereinigung der Arbeitgebernamen durch Entfernung redundanter Adressinformationen erhöht die Datenqualität erheblich und reduziert Duplikate, die durch unterschiedliche Schreibweisen derselben Institution entstanden wären.
+
+Die implementierte Datenanreicherung erwies sich als besonders wertvoll. Die Extraktion strukturierter Informationen aus den Freitextfeldern führte zur erfolgreichen Generierung der Attribute \texttt{FIXEDTERM}, \texttt{WORKINGHOURS} und \texttt{SALARY}. Beispielsweise konnten aus Stellenbeschreibungen wie z. B.  ''Vollzeit, A 14 ÜBesG NRW'' oft die entsprechenden Werte für Arbeitszeit und Vergütung extrahiert werden. Die Zuordnung der Bundesländer erfolgte mit hoher Trefferquote, was regionale Arbeitsmarktanalysen ermöglicht.
+
+\section{Identifizierte Datenqualitätsprobleme}
+Trotz der umfangreichen Bereinigungsmaßnahmen verbleiben verschiedene Datenqualitätsprobleme, die sich den in Abschnitt 2.6 beschriebenen Fehlerkategorien zuordnen lassen:
+\begin{itemize}
+    \item \textbf{Inkonsistente Granularität} zeigt sich bei der Ortsangabe, wo teilweise Stadtteile (\texttt{Eimsbüttel}), teilweise Städte (\texttt{Hamburg}) und gelegentlich nur Regionen (\texttt{Mitte}) angegeben sind. Diese Heterogenität erschwert geografische Aggregationen und Vergleichsanalysen.
+    \item \textbf{Unvollständige Extraktion} wird bei der Befristungsinformation deutlich, wo Angaben wie ''befristet für die'' abgeschnitten erscheinen oder nur partielle Informationen (''befristet'') ohne Zeitraum extrahiert wurden. Dies deutet auf Limitationen der verwendeten Extraktionsalgorithmen hin.
+    \item \textbf{Fehlende Werte} treten systematisch in verschiedenen angereicherten Feldern auf, insbesondere bei \texttt{FIXEDTERM} und \texttt{SALARY}, was die Vollständigkeit der Analysen beeinträchtigt.
+\end{itemize}
+
+\section{Methodische Reflexion}
+Die gewählte Kombination aus regelbasierten und ähnlichkeitsbasierten Verfahren erwies sich grundsätzlich als geeignet. Die TF-IDF-Vektorisierung in Verbindung mit Fuzzy-Matching ermöglichte die Identifikation von Dubletten trotz geringfügiger Schreibvariationen. Allerdings zeigt die Analyse, dass die strikte 100,\%-Übereinstimmungsanforderung möglicherweise zu restriktiv gewählt wurde und potenzielle Dubletten mit minimalen Abweichungen unerkannt bleiben könnten.
+
+Die Extraktion strukturierter Informationen aus Freitextfeldern mittels regulärer Ausdrücke funktionierte für standardisierte Angaben wie Entgeltgruppen gut, stößt jedoch bei variablen Formulierungen an ihre Grenzen. Die beobachteten Abbrüche bei der \texttt{FIXEDTERM}-Extraktion (''befristet für die'') deuten auf unvollständige Pattern-Definitionen hin.
+
+\section{Implikationen für die statistische Analyse}
+Die erreichte Datenqualität ermöglicht fundierte Analysen zu regionalen Stellenverteilungen und institutionellen Schwerpunkten. Die erfolgreiche Anreicherung um Arbeitszeitmodelle und Vergütungsinformationen eröffnet zusätzliche Analysedimensionen. Allerdings erfordern die identifizierten Lücken bei der Vergütungsextraktion eine vorsichtige Interpretation entsprechender Statistiken, da systematische Verzerrungen nicht ausgeschlossen werden können.
+
+\section{Empfehlungen für zukünftige Optimierungen}
+Zur weiteren Verbesserung der Datenqualität werden folgende Maßnahmen empfohlen:
+\begin{enumerate}
+\item Implementation eines mehrstufigen Geocoding-Verfahrens zur Harmonisierung der Ortsangaben auf einheitliche administrative Ebenen
+\item Erweiterung der Extraktionsregeln durch Machine-Learning-basierte Named Entity Recognition für robustere Informationsextraktion
+\item Entwicklung kontextsensibler Dublettenerkennung mit anpassbaren Ähnlichkeitsschwellenwerten
+\end{enumerate}
 
 \addcontentsline{toc}{chapter}{Literaturverzeichnis}
 \printbibliography
@@ -203,5 +257,89 @@ Potsdam, den \today
 \rule{6cm}{0.4pt}\\
 Unterschrift
 \newpage
+
 \chapter*{Anhang}
+\addcontentsline{toc}{chapter}{Anhang}
+
+\section*{Anleitung zur Reproduktion der Ergebnisse}
+
+\subsection*{Schritt 1: Installation}
+\begin{enumerate}
+    \item Entpacken sie die ZIP-Datei direkt in ein leeres Verzeichnis.
+    \item Kopieren Sie auch die Dateien \texttt{bibliojobs\_raw.csv} und \texttt{ort\_bundesland.sql} in dieses Verzeichnis.
+    \item Erstellen Sie im selben Verzeichnis eine virtuelle Python-Umgebung und aktivieren Sie diese:
+        \begin{lstlisting}[language=bash]
+        python -m venv .venv
+        source .venv/bin/activate  # Linux/Mac
+        # oder
+        .venv\Scripts\activate     # Windows
+        \end{lstlisting}
+    \item Installieren Sie alle erforderlichen Abhängigkeiten:
+        \begin{lstlisting}[language=bash]
+        pip install -r requirements.txt
+        \end{lstlisting}
+\end{enumerate}
+
+\subsection*{Schritt 2: Anwendung starten und Daten laden}
+Starten Sie die Anwendung mit dem Pfad zur CSV-Datei:
+\begin{lstlisting}[language=bash]
+python start.py
+# oder, falls die Datei nicht im selben Ordner liegt:
+python start.py bibliojobs_raw.csv
+\end{lstlisting}
+Die Anwendung lädt die Rohdaten und zeigt eine Fortschrittsanzeige während des Einlesevorgangs. Nach erfolgreichem Import werden die Hauptfunktionen über Schaltflächen zugänglich.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\textwidth]{screenshot1.png}
+    \caption{Hauptfenster der Anwendung nach dem Datenimport}
+\end{figure}
+
+\subsection*{Schritt 3: Data Profiling durchführen}
+Klicken Sie auf \textbf{Data Profiling}, um eine umfassende Qualitätsanalyse aller Attribute durchzuführen. Das Profiling-Fenster zeigt für jede Spalte statistische Kennzahlen und ermöglicht die Klassifikation identifizierter Fehler nach Naumann/Leser.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{screenshot2.png}
+    \caption{Data Profiling-Oberfläche mit Spaltenanalyse}
+\end{figure}
+Exportieren Sie die Analyseergebnisse über die Schaltfläche \textbf{Als Excel exportieren} für die Dokumentation.
+
+\subsection*{Schritt 4: Datenbereinigung ausführen}
+Wählen Sie \textbf{Datensätze bereinigen}, um die Homogenisierung der Felder \texttt{LOCATION} und \texttt{COMPANY} zu starten.
+
+\subsection*{Schritt 5: Dublettenerkennung}
+Nach der Bereinigung aktivieren Sie \textbf{Dubletten finden}, um inhaltliche Mehrfachausschreibungen zu identifizieren. Markierte Dubletten können über \textbf{Ergebnisse exportieren} in eine separate CSV-Datei geschrieben werden.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{screenshot3.png}
+    \caption{Dubletten-Übersicht mit Detailvergleich}
+\end{figure}
+
+\subsection*{Schritt 6: Ergebnisse sichern}
+Speichern Sie den bereinigten Datensatz wahlweise als:
+\begin{itemize}
+    \item Excel-Datei über \textbf{Ergebnis als Exceltabelle speichern}
+    \item CSV-Datei mit dem originalen Delimiter über \textbf{Ergebnis als CSV-Datei speichern}
+\end{itemize}
+
+\subsection*{Schritt 7: Data Warehouse initialisieren}
+Klicken Sie auf \textbf{Datenbank initialisieren}, um die PostgreSQL-Datenbank im Sternschema anzulegen. Geben Sie die Verbindungsparameter ein und bestätigen Sie den Import. Der Import erstellt automatisch die Dimensionstabellen (\texttt{dim\_company}, \texttt{dim\_location}, \texttt{dim\_jobtype}) sowie die zentrale Faktentabelle \texttt{fact\_job}.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{screenshot4.png}
+    \caption{Konfigurationsdialog für die Datenbankverbindung}
+\end{figure}
+
+\subsection*{Schritt 8: Ergebnisvalidierung}
+Nach erfolgreichem Import kann die Datenqualität über SQL-Abfragen in der PostgreSQL-Datenbank überprüft werden. Beispielhafte Validierungsabfragen:
+\begin{lstlisting}[language=SQL]
+-- Anzahl bereinigter Datensätze
+SELECT COUNT(*) FROM fact_job;
+\end{lstlisting}
+Alternativ kann auch ein kleines Dashboard über den Button \textbf{Datensätze visualisieren} aufgerufen werden. Das Dashboard öffnet sich dann im Browser.
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.8\textwidth]{screenshot5.png}
+    \caption{Beispielhafte Abfrageergebnisse visualisiert im Browser}
+\end{figure}
+
 \end{document}
