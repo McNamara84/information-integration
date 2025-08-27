@@ -82,6 +82,26 @@ pip install -r requirements.txt
 python start.py path/zur/bibliojobs_raw.csv
 ```
 
+## Schritt-für-Schritt-Anleitung
+
+1. **Anwendung starten**  
+   `python start.py path/zur/bibliojobs_raw.csv` lädt den Datensatz und zeigt eine Fortschrittsanzeige. Nach dem Einlesen sind die folgenden Schaltflächen aktiv.
+
+2. **Data Profiling durchführen**  
+   Über **Data Profiling** werden alle Attribute geprüft. In der Profiling-Oberfläche können Fehlerklassen nach Naumann/Leser vergeben und die Ergebnisse als Excel-Datei exportiert werden.
+
+3. **Datensätze bereinigen**  
+   Mit **Datensätze bereinigen** werden `_LOCATION_` und `_COMPANY_` homogenisiert. Orte werden mittels `ort_bundesland.sql` um `_REGION_` ergänzt; ein Fallback nutzt `reverse_geocoder`. Gleichzeitig extrahiert die Anwendung aus `_JOBTERMS_` Angaben zu Befristung, Arbeitszeit und Vergütung.
+
+4. **Dubletten prüfen und exportieren**  
+   Nach der Bereinigung identifiziert **Dubletten finden** inhaltliche Mehrfachausschreibungen. Im Fenster **Gefundene Dubletten** lassen sich markierte Einträge entfernen und mit **Ergebnisse exportieren** in eine separate CSV-Datei schreiben.
+
+5. **Bereinigten Datensatz sichern**  
+   Über **Ergebnis als Exceltabelle speichern** kann der bereinigte und deduplizierte Datenbestand als Excel-Datei abgelegt werden.
+
+6. **Data Warehouse initialisieren**  
+   Mit **Datenbank initialisieren** wird eine PostgreSQL-Datenbank im Sternschema erstellt und der Datensatz importiert. Die anschließende statistische Auswertung im DWH ist nicht Bestandteil der Anwendung und muss extern, z. B. per SQL oder BI-Tool, erfolgen.
+
 ## Tests
 
 ```bash
