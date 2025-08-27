@@ -68,6 +68,8 @@ TEMPLATE = """
       #instChart { width: 99% !important; height: 99% !important; }
       /* Verhindert Überlauf bei flex-basiertem Layout in Cards */
       .fill-card .card-body > .flex-grow-1 { min-height: 0; }
+      /* Überschriften zentrieren */
+      h1, .card-title { text-align: center; }
     </style>
 </head>
 <body class="p-4">
