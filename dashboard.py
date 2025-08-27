@@ -32,17 +32,17 @@ INSTTYPE_NAMES = {
     "informationseinrichtung": "Informationseinrichtung",
     "oeffentliche-bibliothek": "Öffentliche Bibliothek",
     "spezialbibliothek": "Spezialbibliothek",
-    "sonstige-Einrichtung": "Sonstige",
+    "sonstige-einrichtung": "Sonstige",
     "archiv": "Archiv",
-    "wissenschaftliche-Bibliothek": "Wissenschaftliche Bibliothek",
+    "wissenschaftliche-bibliothek": "Wissenschaftliche Bibliothek",
     "bibliothek": "Bibliothek",
 }
 
 
 # Parameters for the employer word cloud. Adjust these values to tweak
 # the appearance of the visualization.
-WC_WIDTH = 400
-WC_HEIGHT = 250
+WC_WIDTH = 800
+WC_HEIGHT = 500
 WC_BACKGROUND_COLOR = "white"
 WC_MAX_WORDS = 10
 WC_PREFER_HORIZONTAL = 0.5  # 0 = vertical, 1 = horizontal
@@ -114,7 +114,7 @@ TEMPLATE = """
                             <img
                                 src="data:image/png;base64,{{ company_cloud }}"
                                 alt="Top 10 Arbeitgeber"
-                                class="img-fluid w-100 mx-auto"
+                                class="img-fluid mx-auto"
                                 style="object-fit: contain;"
                             />
                         </div>
