@@ -45,7 +45,10 @@ WC_HEIGHT = 500
 WC_BACKGROUND_COLOR = "white"
 WC_MAX_WORDS = 10
 WC_PREFER_HORIZONTAL = 0.5  # 0 = vertical, 1 = horizontal
-WC_RELATIVE_SCALING = 0.5   # 0 = uniform sizes, 1 = frequency based
+# ``relative_scaling`` now expects a string literal ``"auto"`` instead of a float
+# value. ``"auto"`` corresponds to ``0.5`` when ``repeat`` is ``False`` and thus
+# preserves the behaviour that was previously configured with the numeric value.
+WC_RELATIVE_SCALING: str = "auto"
 WC_RANDOM_STATE: int | None = None
 
 
@@ -336,8 +339,13 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
                 coords = plz_cache.get(plz)
                 if coords is None and plz not in plz_cache:
                     result = geocoder.query_postal_code(plz)
-                    if not math.isnan(result.latitude) and not math.isnan(result.longitude):
-                        coords = (float(result.latitude), float(result.longitude))
+                    lat_raw = result.latitude
+                    lon_raw = result.longitude
+                    if isinstance(lat_raw, (int, float)) and isinstance(lon_raw, (int, float)):
+                        lat_val = float(lat_raw)
+                        lon_val = float(lon_raw)
+                        if not math.isnan(lat_val) and not math.isnan(lon_val):
+                            coords = (lat_val, lon_val)
                     plz_cache[plz] = coords
                 coords = plz_cache.get(plz)
                 if coords:
