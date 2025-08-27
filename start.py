@@ -137,6 +137,26 @@ def apply_modern_style(app: QtWidgets.QApplication) -> None:
     )
 
 
+def dataframe_to_custom_csv(dataframe: pd.DataFrame) -> str:
+    """Return a CSV representation using ``_§_`` as separator.
+
+    Parameters
+    ----------
+    dataframe:
+        The :class:`pandas.DataFrame` to serialize.
+
+    Returns
+    -------
+    str
+        CSV formatted string with ``_§_`` as field delimiter and ``\n`` as line
+        terminator.
+    """
+
+    buffer = io.StringIO()
+    dataframe.to_csv(buffer, index=False, sep="\t", lineterminator="\n")
+    return buffer.getvalue().replace("\t", "_§_")
+
+
 class LoadWorker(QtCore.QObject):
     """Worker object that reads the raw CSV file in a background thread."""
 
@@ -430,10 +450,8 @@ class MainWindow(QtWidgets.QMainWindow):
         )
         if not path:
             return
-        buffer = io.StringIO()
-        self._dataframe.to_csv(buffer, index=False, sep="\t")
-        content = buffer.getvalue().replace("\t", "_§_")
-        with open(path, "w", encoding="utf-8") as fh:
+        content = dataframe_to_custom_csv(self._dataframe)
+        with open(path, "w", encoding="utf-8", newline="") as fh:
             fh.write(content)
         if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
             QtWidgets.QMessageBox.information(
