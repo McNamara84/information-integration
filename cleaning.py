@@ -625,16 +625,16 @@ def clean_dataframe(
 
         if "location" in cleaned.columns and "location" in region_mapping.columns:
             location_groups: dict[str, pd.DataFrame] = {
-                loc: grp for loc, grp in region_mapping.groupby("location")
+                str(loc): grp for loc, grp in region_mapping.groupby("location")
             }
             all_locations: list[str] = list(location_groups.keys())
 
             def _resolve_location(row):
-                loc = row["location"]
+                loc = str(row["location"])
                 group = location_groups.get(loc)
                 if group is None:
                     match = process.extractOne(
-                        str(loc),
+                        loc,
                         all_locations,
                         score_cutoff=90,
                     )
