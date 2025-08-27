@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import base64
 from io import BytesIO
+import re
 import pgeocode
 import psycopg2
 from flask import Flask, render_template_string
@@ -215,11 +216,9 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
                FROM dim_company dc
                JOIN fact_job fj ON dc.company_id = fj.company_id
                WHERE dc.company IS NOT NULL AND dc.company <> ''
-               GROUP BY dc.company
-               ORDER BY cnt DESC
-               LIMIT 10"""
+               GROUP BY dc.company"""
         )
-        top_company_rows = cur.fetchall()
+        company_rows = cur.fetchall()
         cur.execute(
             """SELECT dl.geo_lat, dl.geo_lon, dl.plz, dc.company, fj.jobdescription
                FROM dim_location dl
@@ -252,8 +251,13 @@ def create_app(conn_info: dict[str, str | int]) -> Flask:
                 salary_map[region_name] = salary
         salaries = [(bl, salary_map[bl]) for bl in BUNDESLAENDER]
         company_cloud = ""
-        if top_company_rows:
-            freqs = {f"{name} ({cnt})": cnt for name, cnt in top_company_rows}
+        if company_rows:
+            combined: dict[str, int] = {}
+            for name, cnt in company_rows:
+                normalized = re.sub(r"\s+Hannover$", "", name or "").strip()
+                combined[normalized] = combined.get(normalized, 0) + cnt
+            top_companies = sorted(combined.items(), key=lambda x: x[1], reverse=True)[:10]
+            freqs = {f"{name} ({cnt})": cnt for name, cnt in top_companies}
             wc = WordCloud(
                 width=WC_WIDTH,
                 height=WC_HEIGHT,
