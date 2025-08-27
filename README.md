@@ -7,6 +7,30 @@ Ein Projekt im Rahmen der Hausarbeit im 6. Fachsemester des Studiengangs **Infor
 
 > **Status:** Dieses Repository befindet sich in aktiver Entwicklung. Feedback und Beiträge sind willkommen.
 
+## Aufgabenstellung
+
+Im Rahmen einer Arbeitsmarktanalyse sollen Metadaten von ca. 23 000
+Stellenanzeigen aus den Jahren 2014–2025 für das Berufsfeld
+Bibliotheks- und Informationswissenschaft aufbereitet werden. Die
+Rohdaten liegen als CSV-Datei `bibliojobs_raw.csv` mit elf Attributen
+und dem Feldtrennzeichen `_§_` vor.
+
+Ziel der Anwendung ist es,
+
+- die Felder `_LOCATION_` und `_COMPANY_` zu bereinigen und zu
+  homogenisieren,
+- alle Attribute mittels Data Profiling auf Inkonsistenzen zu prüfen
+  und relative Häufigkeiten sowie Fehlertypen in einer Excel-Datei zu
+  dokumentieren,
+- inhaltliche Dubletten zu erkennen, aus dem Analysedatensatz zu
+  entfernen und in einer separaten CSV-Datei zu speichern,
+- Orte über die MySQL-Datei `ort_bundesland.sql` um das Attribut
+  `_REGION_` zu erweitern,
+- aus dem Freitextfeld `_JOBTERMS_` Hinweise zu Befristung,
+  Vollzeit/Teilzeit und Vergütung zu extrahieren und
+- den bereinigten Datensatz in ein PostgreSQL-basiertes
+  Data Warehouse mit Sternschema zu übertragen.
+
 ## Funktionsumfang
 
 - **CSV-Import & Normalisierung**

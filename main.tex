@@ -99,11 +99,11 @@
 
 \chapter{Einleitung}
 
-Im Rahmen einer Arbeitsmarktanalyse sollen für das Berufsfeld Bibliotheks- und Informationswissenschaft Metadaten von Stellenanzeigen statistisch ausgewertet werden. Die Rohdaten umfassen rund 23\,000 Datensätze aus den Jahren 2014--2025 und liegen als CSV-Datei \texttt{bibliojobs\_raw.csv} mit elf Metadatenfeldern vor.
+Im Rahmen einer Arbeitsmarktanalyse sollen für das Berufsfeld Bibliotheks- und Informationswissenschaft Metadaten von Stellenanzeigen statistisch ausgewertet werden. Die Rohdaten umfassen rund 23\,000 Datensätze aus den Jahren 2014--2025 und liegen als CSV-Datei \texttt{bibliojobs\_raw.csv} mit elf Metadatenfeldern und dem Feldtrenner \texttt{\_§\_} vor.
 
 Zur Vorbereitung eines Imports in ein Data Warehouse werden die Metadaten bereinigt, homogenisiert und angereichert. Die Bereinigung konzentriert sich auf die Felder \texttt{\_LOCATION\_} und \texttt{\_COMPANY\_}, während ein umfassendes Data Profiling alle Attribute auf Inkonsistenzen untersucht und relative Häufigkeiten sowie Fehlertypen in einer Exceltabelle dokumentiert.
 
-Darüber hinaus sollen inhaltliche Dubletten identifiziert und separat gespeichert, die Orte mittels der SQL-Datei \texttt{ort\_bundesland.sql} um das Attribut \texttt{\_REGION\_} erweitert sowie aus dem Freitextfeld \texttt{\_JOBTERMS\_} Informationen zu Befristung, Arbeitszeit und Vergütung extrahiert werden. Kann ein Ort über das Mapping nicht zugeordnet werden, ermittelt eine Koordinatenanalyse mit dem Offline-Datensatz \texttt{reverse\_geocoder} das Bundesland. Der bereinigte und angereicherte Datensatz wird abschließend in ein PostgreSQL-basiertes DWH überführt und dort unter Anwendung eines Sternschemas statistisch analysiert.
+Darüber hinaus sollen inhaltliche Dubletten identifiziert, aus dem Analysedatensatz entfernt und in einer separaten CSV-Datei gespeichert werden. Die Orte werden mittels der SQL-Datei \texttt{ort\_bundesland.sql} um das Attribut \texttt{\_REGION\_} erweitert, und aus dem Freitextfeld \texttt{\_JOBTERMS\_} werden Informationen zu Befristung, Arbeitszeit und Vergütung extrahiert. Kann ein Ort über das Mapping nicht zugeordnet werden, ermittelt eine Koordinatenanalyse mit dem Offline-Datensatz \texttt{reverse\_geocoder} das Bundesland. Der bereinigte und angereicherte Datensatz wird abschließend in ein PostgreSQL-basiertes DWH überführt und dort unter Anwendung eines Sternschemas statistisch analysiert.
 
 \chapter{Umsetzung}
 
