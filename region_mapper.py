@@ -1,3 +1,5 @@
+"""Utilities for mapping locations to German federal states."""
+
 from pathlib import Path
 import re
 import time
@@ -21,7 +23,13 @@ _last_nominatim_call = 0.0
 
 
 def _throttle_nominatim(min_interval: float = 1.0) -> None:
-    """Ensure at most one Nominatim request per ``min_interval`` seconds."""
+    """Rate-limit calls to the Nominatim API.
+
+    Parameters
+    ----------
+    min_interval : float, optional
+        Minimum number of seconds between requests. Default is ``1.0``.
+    """
 
     global _last_nominatim_call
     elapsed = time.monotonic() - _last_nominatim_call
@@ -51,14 +59,24 @@ def _normalize_region(region: Optional[str]) -> Optional[str]:
 
 @lru_cache()
 def region_from_coordinates(lat: float, lon: float) -> Optional[str]:
-    """Return German federal state for given ``lat`` and ``lon`` using an API.
+    """Look up the German federal state for a coordinate pair.
 
-    Queries the public Nominatim API which returns address details for the
-    provided coordinates. The ``state`` field is used as Bundesland. Results are
-    cached to avoid repeated lookups for identical coordinate pairs. Network
-    errors or missing data result in ``None``. The function adheres to the
-    service's usage policy by issuing at most one request per second and
-    retrying once if the service signals rate limiting.
+    Parameters
+    ----------
+    lat : float
+        Latitude value.
+    lon : float
+        Longitude value.
+
+    Returns
+    -------
+    Optional[str]
+        Name of the federal state or ``None`` if it cannot be determined.
+
+    Notes
+    -----
+    The public Nominatim API is queried first and a fallback service is used if
+    no result is returned. Results are cached and requests are rate limited.
     """
 
     if pd.isna(lat) or pd.isna(lon):

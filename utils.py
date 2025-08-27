@@ -5,10 +5,18 @@ from typing import Callable, Optional
 def make_status_printer(
     status_callback: Optional[Callable[[str], None]]
 ) -> Callable[[str], None]:
-    """Return a status printing function.
+    """Create a callable for emitting status messages.
 
-    The returned function will forward messages to ``status_callback`` if it is
-    provided. Otherwise, messages are printed to standard output.
+    Parameters
+    ----------
+    status_callback : callable, optional
+        Callback that receives status messages. If ``None`` messages are printed
+        to standard output.
+
+    Returns
+    -------
+    Callable[[str], None]
+        Function accepting a message string.
     """
 
     def _status(msg: str) -> None:

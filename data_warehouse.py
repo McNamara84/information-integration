@@ -1,3 +1,5 @@
+"""Creation and validation of the PostgreSQL data warehouse."""
+
 from typing import Dict, Callable, Optional
 
 import pandas as pd
@@ -8,10 +10,19 @@ from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 def is_data_warehouse_initialized(
     df: pd.DataFrame, conn_info: Dict[str, str | int]
 ) -> bool:
-    """Return ``True`` if all tables exist with expected row counts.
+    """Check whether the data warehouse contains the expected tables and rows.
 
-    The expected counts are derived from ``df`` and compared with the
-    contents of the target database defined by ``conn_info``.
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Cleansed dataset whose row counts are used for comparison.
+    conn_info : dict
+        Connection parameters for the target database.
+
+    Returns
+    -------
+    bool
+        ``True`` if all tables exist with matching row counts, ``False`` otherwise.
     """
 
     host = conn_info.get("host", "localhost")
@@ -75,7 +86,7 @@ def create_data_warehouse(
     progress_callback: Optional[Callable[[float], None]] = None,
     status_callback: Optional[Callable[[str], None]] = None,
 ) -> None:
-    """Create a simple star-schema data warehouse from *df*.
+    """Create a simple star-schema data warehouse from ``df``.
 
     Parameters
     ----------
@@ -88,6 +99,11 @@ def create_data_warehouse(
         Function receiving progress percentage as ``float``.
     status_callback : callable, optional
         Function receiving human-readable status messages.
+
+    Returns
+    -------
+    None
+        The data warehouse is created as a side effect.
     """
     host = conn_info.get("host", "localhost")
     port = int(conn_info.get("port", 5432))
