@@ -217,10 +217,6 @@ class MainWindow(QtWidgets.QMainWindow):
         if APP_ICON is not None:
             self.setWindowIcon(APP_ICON)
         self.resize(800, 600)
-
-        # Create an explicit status bar so that subsequent attribute access is
-        # always safe. ``QMainWindow.statusBar`` can technically return ``None``
-        # which confuses static type checkers.
         self._status: QtWidgets.QStatusBar = QtWidgets.QStatusBar(self)
         self.setStatusBar(self._status)
         self._progress = QtWidgets.QProgressBar()
@@ -308,9 +304,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self._profile_window = None
         stats = profile_dataframe(self._dataframe)
         window = ProfileWindow(stats, self._dataframe, self)
-        # Use the ``WidgetAttribute`` enum explicitly to satisfy static type
-        # checkers that may not know about the ``WA_DeleteOnClose`` attribute on
-        # ``Qt``.
         window.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
         window.closed.connect(self._on_profile_window_destroyed)
         window.show()
@@ -483,10 +476,6 @@ class ProfileWindow(QtWidgets.QMainWindow):
         layout.addWidget(self._export_button)
 
         self.setCentralWidget(container)
-
-        # ``verticalHeader`` and ``verticalScrollBar`` are guaranteed to return
-        # valid objects at runtime but are typed as optional, so we resolve them
-        # through a helper to enforce non-``None`` values.
         header = _require(table.verticalHeader(), "verticalHeader")
         total_width = header.width() + table.frameWidth() * 2
         v_scroll = _require(table.verticalScrollBar(), "verticalScrollBar")
@@ -503,20 +492,12 @@ class ProfileWindow(QtWidgets.QMainWindow):
         )
         if not path:
             return
-        
-        # Create the report according to requirements:
-        # 1. Spalte: untersuchtes Attribut
-        # 2. Spalte: Fehlertyp gemäss der Fehlerklassifikation von Nauman/Leser  
-        # 3. Spalte: relative Fehlerquote
         rows = []
-        
-        # For each column in the dataframe, get ALL error types
         for column in self._dataframe.columns:
             series = self._dataframe[column]
             all_errors = get_all_error_types(series, column)
             
             if all_errors:
-                # Add one row for each error type found
                 for error_type, error_rate in all_errors:
                     rows.append({
                         "Attribut": column,
@@ -524,20 +505,15 @@ class ProfileWindow(QtWidgets.QMainWindow):
                         "Relative Fehlerquote (%)": round(error_rate, 2),
                     })
             else:
-                # If no errors found, add a row indicating this
                 rows.append({
                     "Attribut": column,
                     "Fehlertyp": "Keine signifikanten Fehler",
                     "Relative Fehlerquote (%)": 0.0,
                 })
-        
-        # Sort by attribute name, then by error rate (descending)
         rows.sort(key=lambda x: (x["Attribut"], -x["Relative Fehlerquote (%)"]))
         
         report_df = pd.DataFrame(rows)
         report_df.to_excel(path, index=False)
-        
-        # Show success message only when a display is available
         if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
             QtWidgets.QMessageBox.information(
                 self,
@@ -876,8 +852,6 @@ def main() -> None:
 
     if sys.platform.startswith("win"):  # pragma: no cover - Windows only
         import ctypes
-        # Set the AppUserModelID *before* creating QApplication so Windows
-        # uses our custom icon for the taskbar instead of python.exe
         ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
             "information-integration"
         )
@@ -885,7 +859,6 @@ def main() -> None:
     app = QtWidgets.QApplication(sys.argv)
 
     if sys.platform == "darwin":  # pragma: no cover - macOS only
-        # Use the custom icon for the dock as well
         try:
             from AppKit import NSApplication, NSImage  # type: ignore
 
@@ -895,8 +868,6 @@ def main() -> None:
         except Exception:  # pragma: no cover - optional dependency
             pass
     apply_modern_style(app)
-
-    # Initialize the application icon after QApplication is created
     global APP_ICON
     APP_ICON = QtGui.QIcon(ICON_PATH)
     app.setWindowIcon(APP_ICON)
