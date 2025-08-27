@@ -513,7 +513,7 @@ def clean_dataframe(
     progress_callback: Optional[Callable[[float], None]] = None,
     status_callback: Optional[Callable[[str], None]] = None,
     region_mapping: Optional[pd.DataFrame] = None,
-    debug: bool = True,
+    debug: bool = False,
 ) -> pd.DataFrame:
     """Clean and enrich the raw dataset.
 
