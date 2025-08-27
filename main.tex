@@ -56,9 +56,12 @@
     and = {und},
 }
 
-\usepackage[acronym]{glossaries}
+% Glossaries und Akronyme
+\usepackage[acronym,toc,nonumberlist]{glossaries}
 \makeglossaries
-\newacronym{dwh}{DWH}{Data Warehouse}
+
+% Abkürzungen definieren
+\newacronym{rdm}{RDM}{Research Data Management}
 
 \usepackage{fancyhdr}
 \pagestyle{fancy}
@@ -76,7 +79,7 @@
 \begin{titlepage}
     \centering
     \vspace*{1cm}
-    \Large{\textbf{Informationsintegration -- Bibliojobs}}\\
+    \Large{\textbf{Dokumentation zur praktischen Hausarbeit}}\\
     \vspace{1.5cm}
     \Large{Fachhochschule Potsdam}\\
     \vspace{0.5cm}
@@ -86,7 +89,7 @@
     Matr. Nr. 21766\\
     \vspace{1cm}
     D11 Informationsintegration\\
-    Sommersemester 2025\\
+    Sommersemester 25\\
     Prof. Dr. Günther Neher
     \vfill
     \today
@@ -97,7 +100,10 @@
 {\small \tableofcontents}
 \endgroup
 
-\chapter{Einleitung}
+% Abkürzungsverzeichnis
+\printglossary[type=\acronymtype,title=Abkürzungsverzeichnis,toctitle=Abkürzungsverzeichnis,style=index]
+
+\chapter{Problemstellung}
 
 Im Rahmen einer Arbeitsmarktanalyse sollen für das Berufsfeld Bibliotheks- und Informationswissenschaft Metadaten von Stellenanzeigen statistisch ausgewertet werden. Die Rohdaten umfassen rund 23\,000 Datensätze aus den Jahren 2014--2025 und liegen als CSV-Datei \texttt{bibliojobs\_raw.csv} mit elf Metadatenfeldern und dem Feldtrenner \texttt{\_§\_} vor.
 
@@ -105,7 +111,8 @@ Zur Vorbereitung eines Imports in ein Data Warehouse werden die Metadaten berein
 
 Darüber hinaus sollen inhaltliche Dubletten identifiziert, aus dem Analysedatensatz entfernt und in einer separaten CSV-Datei gespeichert werden. Die Orte werden mittels der SQL-Datei \texttt{ort\_bundesland.sql} um das Attribut \texttt{\_REGION\_} erweitert, und aus dem Freitextfeld \texttt{\_JOBTERMS\_} werden Informationen zu Befristung, Arbeitszeit und Vergütung extrahiert. Kann ein Ort über das Mapping nicht zugeordnet werden, ermittelt eine Koordinatenanalyse mit dem Offline-Datensatz \texttt{reverse\_geocoder} das Bundesland. Der bereinigte und angereicherte Datensatz kann als Exceltabelle oder als CSV-Datei mit dem Feldtrenner \texttt{\_§\_} exportiert oder in ein PostgreSQL-basiertes DWH überführt und dort unter Anwendung eines Sternschemas statistisch analysiert werden.
 
-\chapter{Umsetzung}
+
+\chapter{Herangehensweise}
 
 Die Umsetzung des Datenintegrationsprozesses erfolgt in einer isolierten Python-Umgebung mit den Bibliotheken \texttt{pandas}, \texttt{numpy}, \texttt{openpyxl}, \texttt{rapidfuzz}, \texttt{scikit-learn}, \texttt{sqlalchemy}, \texttt{mysqlclient}, \texttt{psycopg2-binary}, \texttt{nltk} und \texttt{requests}.
 
@@ -165,7 +172,10 @@ Zur Benennung der Fehlertypen wurde die Klassifikation von Naumann und Leser gen
 
 \textbf{Datenkonflikte} entstehen, wenn verschiedene Versionen derselben Information in einem Datensatz koexistieren, ohne dass klar ist, welche Version korrekt oder aktuell ist. Dies tritt häufig bei zeitlichen Datenaktualisierungen auf, wenn alte Werte nicht ordnungsgemäß überschrieben werden.
 
+\chapter{Kritische Betrachtung der Ergebnisse}
 
+\addcontentsline{toc}{chapter}{Literaturverzeichnis}
+\printbibliography
 
 \newpage
 \addcontentsline{toc}{chapter}{Eigenständigkeitserklärung}
@@ -180,6 +190,8 @@ Ich erkläre, dass
 
 Zugleich erkläre ich, dass ich die Prüfungsleistung vor der Abgabe der Leistung bei QIS angemeldet habe.
 
+Für eine bessere Lesbarkeit und zur Vermeidung von Grammatik- und Rechtschreibfehler wurden sämtliche Texte mit dem KI-Werkzeug DeepL überarbeitet.
+
 \vspace{2cm}
 
 \noindent
@@ -190,9 +202,6 @@ Potsdam, den \today
 \noindent
 \rule{6cm}{0.4pt}\\
 Unterschrift
-
-\addcontentsline{toc}{chapter}{Literaturverzeichnis}
-\printbibliography
 \newpage
-\appendix
+\chapter*{Anhang}
 \end{document}
