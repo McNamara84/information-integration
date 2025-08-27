@@ -47,13 +47,17 @@ def is_data_warehouse_initialized(
     fact_expected = len(df)
 
     cur.execute("SELECT COUNT(*) FROM dim_company")
-    company_count = cur.fetchone()[0]
+    company_row = cur.fetchone()
+    company_count = company_row[0] if company_row else 0
     cur.execute("SELECT COUNT(*) FROM dim_location")
-    location_count = cur.fetchone()[0]
+    location_row = cur.fetchone()
+    location_count = location_row[0] if location_row else 0
     cur.execute("SELECT COUNT(*) FROM dim_jobtype")
-    jobtype_count = cur.fetchone()[0]
+    jobtype_row = cur.fetchone()
+    jobtype_count = jobtype_row[0] if jobtype_row else 0
     cur.execute("SELECT COUNT(*) FROM fact_job")
-    fact_count = cur.fetchone()[0]
+    fact_row = cur.fetchone()
+    fact_count = fact_row[0] if fact_row else 0
     cur.close()
     conn.close()
 
