@@ -140,29 +140,10 @@ Die systematische Datenbereinigung erfolgt schrittweise unter Verwendung fortges
 
 Die Dublettensuche implementiert einen hybriden Ansatz, der Fuzzy-Matching für die Attribute \texttt{jobdescription}, \texttt{company}, \texttt{location}, \texttt{plz}, \texttt{salary} und die geografischen Koordinaten mit exakten Vergleichen der strukturierten Felder \texttt{jobtype}, \texttt{insttype}, \texttt{country}, \texttt{fixedterm} und \texttt{workinghours} kombiniert. Duplikate werden ausschließlich bei einer Übereinstimmung von 100\,\% als solche klassifiziert und in einem separaten Fenster zur manuellen Validierung dargestellt.
 
-\section{Datenanreicherung und regionale Zuordnung}
-
-Die Anreicherung der Datensätze um regionale Informationen erfolgt durch die Integration einer lokalen Referenzdatei \texttt{ort\_bundesland.sql}, die mittels \texttt{sqlalchemy} verknüpft wird. Für Datensätze ohne erfolgreiche Zuordnung wird das \texttt{reverse\_geocoder}-Modul eingesetzt, um anhand vorhandener Koordinaten die entsprechenden Bundesländer zu bestimmen. Diese mehrstufige Zuordnungsstrategie maximiert die Vollständigkeit der regionalen Klassifikation.
-
-Zusätzlich ermöglichen spezialisierte Extraktionsalgorithmen die Überführung unstrukturierter Informationen aus Freitextfeldern in auswertbare, strukturierte Attribute. Diese methodische Vorgehensweise gewährleistet eine transparente und reproduzierbare Aufbereitung des gesamten Datensatzes.
-
-\section{Data Warehouse-Implementierung}
-
-Nach erfolgreicher Datenbereinigung und -anreicherung erfolgt die Überführung in ein PostgreSQL-basiertes Data Warehouse unter Anwendung eines Sternschemas. Die Implementierung umfasst die automatisierte Erstellung von Dimensionstabellen für Unternehmen, Orte und Jobtypen sowie der zentralen Faktentabelle \texttt{fact\_job}. Ein integrierter Ladebalken mit detaillierten Statusmeldungen informiert über den Fortschritt des Importvorgangs, der aufgrund des Datenvolumens entsprechende Verarbeitungszeit beansprucht.
-
-\begin{figure}[h]
-    \centering
-    \includegraphics[width=\textwidth]{er-diagram.png}
-    \caption{ER-Diagramm des implementierten Data Warehouses}
-    \label{fig:er-diagram}
-\end{figure}
-
-\section{Klassifikation von Datenqualitätsfehlern}
-
+\subsection{Klassifikation von Datenqualitätsfehlern}
 Zur systematischen Kategorisierung von Datenqualitätsproblemen wird die etablierte Fehlerklassifikation von \cite{leser2007informationsintegration} angewendet, die zwischen Fehlern auf Schema- und Datenebene differenziert und in den nachfolgenden Abschnitten detailliert beschrieben wird.
 
-\subsection{Fehler auf Schemaebene}
-
+\subsubsection{Fehler auf Schemaebene}
 \textbf{Unzulässige Werte} manifestieren sich, wenn Datenwerte außerhalb der für ein Attribut definierten Wertedomäne liegen. Exemplarisch wäre ein Geburtsdatum wie \texttt{32.1.1997} zu nennen, bei dem der Tageswert den gültigen Bereich von 1--31 überschreitet. Die systematische Identifikation solcher Anomalien erfolgt durch Wertebereich-Validierungen und Format-Prüfungen.
 
 \textbf{Verletzte Attributabhängigkeiten} treten auf, wenn vordefinierte semantische Beziehungen zwischen Attributwerten nicht eingehalten werden. Dies manifestiert sich beispielsweise, wenn das Alter einer Person mit 17 Jahren angegeben wird, das korrespondierende Geburtsdatum jedoch auf den 2.1.1970 datiert ist. Die programmtechnische Erkennung erfordert Cross-Field-Validierungen zwischen abhängigen Datenfeldern.
@@ -171,7 +152,7 @@ Zur systematischen Kategorisierung von Datenqualitätsproblemen wird die etablie
 
 \textbf{Verletzte referenzielle Integrität} liegt vor, wenn Fremdschlüsselwerte in den referenzierten Tabellen nicht existieren. Solche Inkonsistenzen entstehen häufig bei unvollständigen Datenmigrationen oder fehlerhaften Löschoperationen und erfordern Join-Operationen zur Validierung der Referenzen.
 
-\subsection{Fehler auf Datenebene}
+\subsubsection{Fehler auf Datenebene}
 
 \textbf{Fehlende Werte} manifestieren sich als NULL-Werte in Kontexten, wo eigentlich Informationen verfügbar sein sollten. Besonders problematisch gestaltet sich dies bei manueller Dateneingabe, wo häufig Dummy-Werte wie \texttt{AAA} oder \texttt{999-999} zur Umgehung von NOT-NULL-Constraints verwendet werden. Diese Dummy-Werte sind meist nicht eindeutig definiert und erschweren die Identifikation und Bereinigung erheblich.
 
@@ -194,6 +175,88 @@ Zur systematischen Kategorisierung von Datenqualitätsproblemen wird die etablie
 \textbf{Duplikate} stellen mehrfache Repräsentationen desselben realen Objekts innerhalb einer Datenquelle dar. Diese können durch wiederholte Eingabe, fehlerhafte Import-Prozesse oder unvollständige Bereinigungsverfahren entstehen und beeinträchtigen die Datenqualität erheblich.
 
 \textbf{Datenkonflikte} entstehen, wenn verschiedene Versionen derselben Information in einem Datensatz koexistieren, ohne dass Klarheit über die korrekte oder aktuelle Version besteht. Dies tritt häufig bei zeitlichen Datenaktualisierungen auf, wenn alte Werte nicht ordnungsgemäß überschrieben werden.
+
+\section{Datenanreicherung und regionale Zuordnung}
+Die Anreicherung der Datensätze um regionale Informationen erfolgt durch die Integration einer lokalen Referenzdatei \texttt{ort\_bundesland.sql}, die mittels \texttt{sqlalchemy} verknüpft wird. Für Datensätze ohne erfolgreiche Zuordnung wird das \texttt{reverse\_geocoder}-Modul eingesetzt, um anhand vorhandener Koordinaten die entsprechenden Bundesländer zu bestimmen. Diese mehrstufige Zuordnungsstrategie maximiert die Vollständigkeit der regionalen Klassifikation.
+
+Zusätzlich ermöglichen spezialisierte Extraktionsalgorithmen die Überführung unstrukturierter Informationen aus Freitextfeldern in auswertbare, strukturierte Attribute. Diese methodische Vorgehensweise gewährleistet eine transparente und reproduzierbare Aufbereitung des gesamten Datensatzes.
+
+\section{Data Warehouse-Implementierung}
+
+Nach erfolgreicher Datenbereinigung und -anreicherung erfolgt die Überführung in ein PostgreSQL-basiertes Data Warehouse unter Anwendung eines Sternschemas. Die Implementierung umfasst die automatisierte Erstellung von Dimensionstabellen für Unternehmen, Orte und Jobtypen sowie der zentralen Faktentabelle \texttt{fact\_job}. Ein integrierter Ladebalken mit detaillierten Statusmeldungen informiert über den Fortschritt des Importvorgangs, der aufgrund des Datenvolumens entsprechende Verarbeitungszeit beansprucht.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{er-diagram.png}
+    \caption{ER-Diagramm des implementierten Data Warehouses}
+    \label{fig:er-diagram}
+\end{figure}
+
+\section{Beispielabfragen an das Data Warehouse}
+Für den Test einfacher bis komplexer Beispielabfragen wurde ein Dashboard in die Anwendung implementiert (siehe Abb. 3.5), das über den integrierten Webserver dargestellt wird. Das Dashboard visualisiert ausgewählte Kennzahlen und Verteilungen aus dem Data Warehouse. Die folgenden Unterabschnitte beschreiben die einzelnen Karten, nennen die eingesetzten Visualisierungsmethoden und zeigen die zugrunde liegenden PostgreSQL-Abfragen.
+
+\subsection{Gesamtzahl der Stellenanzeigen}
+Diese Karte im Dashboard stellt eine einfache Kennzahl (\emph{Key Performance Indicator}) dar und zeigt die Gesamtzahl der importierten Stellenausschreibungen.
+\begin{lstlisting}[language=SQL]
+SELECT COUNT(*)
+FROM fact_job;
+\end{lstlisting}
+
+\subsection{Häufigstes Gehalt nach Bundesland}
+Als tabellarische Liste werden je Bundesland die am häufigsten vorkommenden Gehaltsangaben in einer weiteren Karte dargestellt.
+\begin{lstlisting}[language=SQL]
+SELECT region, salary FROM (
+    SELECT dl.region AS region,
+           fj.salary AS salary,
+           COUNT(*) AS cnt,
+           ROW_NUMBER() OVER (
+               PARTITION BY dl.region
+               ORDER BY COUNT(*) DESC
+           ) AS rn
+    FROM dim_location dl
+    JOIN fact_job fj ON dl.location_id = fj.location_id
+    WHERE fj.salary IS NOT NULL AND fj.salary <> ''
+    GROUP BY dl.region, fj.salary
+) s
+WHERE rn = 1;
+\end{lstlisting}
+
+\subsection{Verteilung nach Einrichtungstyp}
+Die Verteilung der Stellenausschreibungen nach Einrichtungstyp wird als Kreisdiagramm mit der JavaScript-Bibliothek Chart.js visualisiert. Die Implementierung mit Chart.js erlaubt den Ausschluss bestimmter Einrichtungstypen.
+\begin{lstlisting}[language=SQL]
+SELECT dc.insttype, COUNT(*)
+FROM dim_company dc
+JOIN fact_job fj ON dc.company_id = fj.company_id
+GROUP BY dc.insttype;
+\end{lstlisting}
+
+\subsection{Top 10 der häufigsten Arbeitgeber}
+Eine Wortwolke hebt die zehn Arbeitgeber mit den meisten Ausschreibungen hervor.
+\begin{lstlisting}[language=SQL]
+SELECT dc.company, COUNT(*) AS cnt
+FROM dim_company dc
+JOIN fact_job fj ON dc.company_id = fj.company_id
+WHERE dc.company IS NOT NULL AND dc.company <> ''
+GROUP BY dc.company;
+\end{lstlisting}
+
+\subsection{Geografische Lage der Stellen}
+Eine interaktive Karte mit Marker-Clustering zeigt die geografische Verteilung der Stellenausschreibungen.
+\begin{lstlisting}[language=SQL]
+SELECT dl.geo_lat, dl.geo_lon, dl.plz, dc.company, fj.jobdescription
+FROM dim_location dl
+JOIN fact_job fj ON dl.location_id = fj.location_id
+JOIN dim_company dc ON dc.company_id = fj.company_id;
+\end{lstlisting}
+
+\subsection{Stellen nach Bundesland}
+Diese Karte präsentiert die Anzahl der Stellenanzeigen je Bundesland in einer sortierten Liste.
+\begin{lstlisting}[language=SQL]
+SELECT dl.region, COUNT(*)
+FROM dim_location dl
+JOIN fact_job fj ON dl.location_id = fj.location_id
+GROUP BY dl.region;
+\end{lstlisting}
 
 \chapter{Kritische Betrachtung der Ergebnisse}
 Die durchgeführte Datenintegration und -bereinigung der Stellenanzeigendaten zeigt sowohl erhebliche Verbesserungen der Datenqualität als auch verbleibende Herausforderungen, die einer differenzierten Betrachtung bedürfen.
@@ -300,6 +363,8 @@ Klicken Sie auf \textbf{Data Profiling}, um eine umfassende Qualitätsanalyse al
     \centering
     \includegraphics[width=\textwidth]{screenshot2.png}
     \caption{Data Profiling-Oberfläche mit Spaltenanalyse}
+    % Screenshot sollte zeigen: Profiling-Fenster mit Tabelle der Spalten, deren Statistiken
+    % (Nullwerte, eindeutige Werte, etc.) und Dropdown-Menüs für Fehlerklassifikation
 \end{figure}
 Exportieren Sie die Analyseergebnisse über die Schaltfläche \textbf{Als Excel exportieren} für die Dokumentation.
 
@@ -312,6 +377,8 @@ Nach der Bereinigung aktivieren Sie \textbf{Dubletten finden}, um inhaltliche Me
     \centering
     \includegraphics[width=\textwidth]{screenshot3.png}
     \caption{Dubletten-Übersicht mit Detailvergleich}
+    % Screenshot sollte zeigen: Fenster mit Liste gefundener Dubletten, Ähnlichkeitswerten
+    % und Möglichkeit zur manuellen Überprüfung
 \end{figure}
 
 \subsection*{Schritt 6: Ergebnisse sichern}
@@ -327,6 +394,8 @@ Klicken Sie auf \textbf{Datenbank initialisieren}, um die PostgreSQL-Datenbank i
     \centering
     \includegraphics[width=0.8\textwidth]{screenshot4.png}
     \caption{Konfigurationsdialog für die Datenbankverbindung}
+    % Screenshot sollte zeigen: Dialog mit Eingabefeldern für Host, Port, Datenbank,
+    % Benutzer und Passwort
 \end{figure}
 
 \subsection*{Schritt 8: Ergebnisvalidierung}
@@ -340,6 +409,8 @@ Alternativ kann auch ein kleines Dashboard über den Button \textbf{Datensätze 
     \centering
     \includegraphics[width=0.8\textwidth]{screenshot5.png}
     \caption{Beispielhafte Abfrageergebnisse visualisiert im Browser}
+    % Screenshot sollte zeigen: pgAdmin oder DBeaver mit ausgeführten Queries
+    % und deren Ergebnissen
 \end{figure}
 
 \end{document}
