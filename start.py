@@ -779,12 +779,16 @@ class DataWarehouseWindow(QtWidgets.QDialog):
                         QtWidgets.QMessageBox.StandardButton.Yes
                         | QtWidgets.QMessageBox.StandardButton.No
                     )
-                    box.button(
+                    yes_button = box.button(
                         QtWidgets.QMessageBox.StandardButton.Yes
-                    ).setText("Ja")
-                    box.button(
+                    )
+                    if yes_button is not None:
+                        yes_button.setText("Ja")
+                    no_button = box.button(
                         QtWidgets.QMessageBox.StandardButton.No
-                    ).setText("Nein")
+                    )
+                    if no_button is not None:
+                        no_button.setText("Nein")
                     result = box.exec()
                     skip = result == QtWidgets.QMessageBox.StandardButton.Yes
                 if skip:

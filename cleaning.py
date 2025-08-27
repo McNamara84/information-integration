@@ -633,7 +633,12 @@ def clean_dataframe(
                 loc = row["location"]
                 group = location_groups.get(loc)
                 if group is None:
-                    match = process.extractOne(str(loc), all_locations, processor=None, score_cutoff=90)
+                    match = process.extractOne(
+                        str(loc),
+                        all_locations,
+                        processor=lambda x: x,
+                        score_cutoff=90,
+                    )
                     if match:
                         group = location_groups.get(match[0])
                 if group is None:
