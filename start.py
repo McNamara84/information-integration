@@ -153,7 +153,11 @@ def dataframe_to_custom_csv(dataframe: pd.DataFrame) -> str:
     """
 
     buffer = io.StringIO()
-    dataframe.to_csv(buffer, index=False, sep="\t", lineterminator="\n")
+    # Write a copy with upper-case column labels so the exported CSV uses
+    # capitalized headers even if the input DataFrame does not.
+    dataframe.rename(columns=str.upper).to_csv(
+        buffer, index=False, sep="\t", lineterminator="\n"
+    )
     return buffer.getvalue().replace("\t", "_§_")
 
 
