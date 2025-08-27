@@ -93,7 +93,9 @@ TEMPLATE = """
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title">Verteilung nach Einrichtungstyp</h5>
-                        <canvas id="instChart" style="height: 200px;"></canvas>
+                        <div style="height: 200px;">
+                            <canvas id="instChart"></canvas>
+                        </div>
                     </div>
                 </div>
                 <div class="card mt-4">
