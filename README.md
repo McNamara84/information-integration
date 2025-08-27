@@ -46,6 +46,7 @@ Ziel der Anwendung ist es,
 - **Data Profiling & Reporting**
   - Grafische Oberfläche (PyQt6) zur Anzeige von Profiling-Kennzahlen und zur Klassifikation von Datenfehlern nach Naumann/Leser.
   - Export von Bereinigungen und Fehlerberichten als Excel-Datei.
+  - Export des bereinigten Datensatzes als Excel- oder CSV-Datei mit dem `_§_`-Trennzeichen.
 - **Dublettenerkennung**
   - Fuzzy-Matching über "jobdescription", "company", "location", "plz" und
     "salary" (RapidFuzz) sowie geographische Koordinaten.
@@ -96,8 +97,8 @@ python start.py path/zur/bibliojobs_raw.csv
 4. **Dubletten prüfen und exportieren**  
    Nach der Bereinigung identifiziert **Dubletten finden** inhaltliche Mehrfachausschreibungen. Im Fenster **Gefundene Dubletten** lassen sich markierte Einträge entfernen und mit **Ergebnisse exportieren** in eine separate CSV-Datei schreiben.
 
-5. **Bereinigten Datensatz sichern**  
-   Über **Ergebnis als Exceltabelle speichern** kann der bereinigte und deduplizierte Datenbestand als Excel-Datei abgelegt werden.
+5. **Bereinigten Datensatz sichern**
+   Über **Ergebnis als Exceltabelle speichern** oder **Ergebnis als CSV-Datei speichern** kann der bereinigte und deduplizierte Datenbestand abgelegt werden. Der CSV-Export verwendet den benutzerdefinierten `_§_`-Delimiter.
 
 6. **Data Warehouse initialisieren**  
    Mit **Datenbank initialisieren** wird eine PostgreSQL-Datenbank im Sternschema erstellt und der Datensatz importiert. Die anschließende statistische Auswertung im DWH ist nicht Bestandteil der Anwendung und muss extern, z. B. per SQL oder BI-Tool, erfolgen.

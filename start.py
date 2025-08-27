@@ -8,6 +8,7 @@ import sys
 import threading
 import webbrowser
 import socket
+import io
 from typing import TYPE_CHECKING, cast, TypeVar
 
 import pandas as pd
@@ -134,6 +135,30 @@ def apply_modern_style(app: QtWidgets.QApplication) -> None:
         }}
         """
     )
+
+
+def dataframe_to_custom_csv(dataframe: pd.DataFrame) -> str:
+    """Return a CSV representation using ``_§_`` as separator.
+
+    Parameters
+    ----------
+    dataframe:
+        The :class:`pandas.DataFrame` to serialize.
+
+    Returns
+    -------
+    str
+        CSV formatted string with ``_§_`` as field delimiter and ``\n`` as line
+        terminator.
+    """
+
+    buffer = io.StringIO()
+    # Write a copy with upper-case column labels so the exported CSV uses
+    # capitalized headers even if the input DataFrame does not.
+    dataframe.rename(columns=str.upper).to_csv(
+        buffer, index=False, sep="\t", lineterminator="\n"
+    )
+    return buffer.getvalue().replace("\t", "_§_")
 
 
 class LoadWorker(QtCore.QObject):
@@ -293,6 +318,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self._export_cleaned_button.hide()
         self._export_cleaned_button.clicked.connect(self._export_cleaned)
 
+        self._export_csv_button = QtWidgets.QPushButton(
+            "Ergebnis als CSV-Datei speichern"
+        )
+        self._export_csv_button.hide()
+        self._export_csv_button.clicked.connect(self._export_csv)
+
         container = QtWidgets.QWidget()
         layout = QtWidgets.QVBoxLayout(container)
         layout.addWidget(self._button)
@@ -300,6 +331,7 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.addWidget(self._dedupe_button)
         layout.addStretch()
         layout.addWidget(self._export_cleaned_button)
+        layout.addWidget(self._export_csv_button)
         self._init_db_button = QtWidgets.QPushButton("Datenbank initialisieren")
         self._init_db_button.hide()
         self._init_db_button.clicked.connect(self._init_database)
@@ -396,6 +428,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._progress.setValue(100)
         self._dedupe_button.setEnabled(True)
         self._export_cleaned_button.show()
+        self._export_csv_button.show()
 
     def _export_cleaned(self) -> None:
         """Export the cleaned dataset to an Excel file."""
@@ -406,6 +439,24 @@ class MainWindow(QtWidgets.QMainWindow):
         if not path:
             return
         self._dataframe.to_excel(path, index=False)
+        if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+            QtWidgets.QMessageBox.information(
+                self,
+                "Export erfolgreich",
+                f"Daten wurden erfolgreich exportiert nach:\n{path}",
+            )
+    
+    def _export_csv(self) -> None:
+        """Export the cleaned dataset to a CSV file."""
+
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "Bereinigte Daten exportieren", filter="CSV Dateien (*.csv)"
+        )
+        if not path:
+            return
+        content = dataframe_to_custom_csv(self._dataframe)
+        with open(path, "w", encoding="utf-8", newline="") as fh:
+            fh.write(content)
         if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
             QtWidgets.QMessageBox.information(
                 self,
