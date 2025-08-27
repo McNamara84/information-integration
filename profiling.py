@@ -20,19 +20,13 @@ def get_all_error_types(series: pd.Series, column_name: str) -> List[Tuple[str, 
         return [("Keine Daten", 0.0)]
     
     error_types = []
-    
-    # Count different error types
     missing_count = series.isna().sum()
     empty_count = (series == "").sum()
     error_markers_count = sum((series == val).sum() for val in ERROR_VALUES if val not in [None, ""])
-    
-    # Missing values (including various representations)
     total_missing = missing_count + empty_count + error_markers_count
     if total_missing > 0:
         missing_rate = (total_missing / total_count) * 100
         error_types.append(("Fehlende Werte", missing_rate))
-    
-    # Duplicates (only check for columns that should be unique)
     unique_columns = ["jobid", "url"]
     if column_name.lower() in unique_columns:
         non_null_series = series.dropna()
@@ -41,8 +35,6 @@ def get_all_error_types(series: pd.Series, column_name: str) -> List[Tuple[str, 
             if duplicate_count > 0:
                 duplicate_rate = (duplicate_count / total_count) * 100
                 error_types.append(("Eindeutigkeitsverletzungen", duplicate_rate))
-    
-    # Invalid values (for specific columns)
     if column_name.lower() in ["geo_lat", "geo_lon"]:
         numeric_series = pd.to_numeric(series, errors="coerce")
         invalid_count = 0
@@ -61,8 +53,6 @@ def get_all_error_types(series: pd.Series, column_name: str) -> List[Tuple[str, 
             if invalid_count > 0:
                 invalid_values_rate = (invalid_count / total_count) * 100
                 error_types.append(("Unzulässige Werte", invalid_values_rate))
-    
-    # Cryptic values (very short codes without clear meaning)
     if column_name.lower() in ["location"]:
         non_null = series.dropna()
         if len(non_null) > 0:
@@ -71,8 +61,6 @@ def get_all_error_types(series: pd.Series, column_name: str) -> List[Tuple[str, 
             if cryptic_count > 0:
                 cryptic_rate = (cryptic_count / total_count) * 100
                 error_types.append(("Kryptische Werte", cryptic_rate))
-    
-    # Embedded values (multiple pieces of information in one field)
     if column_name.lower() in ["company"]:
         non_null = series.dropna()
         if len(non_null) > 0:
@@ -81,8 +69,6 @@ def get_all_error_types(series: pd.Series, column_name: str) -> List[Tuple[str, 
             if embedded_count > 0:
                 embedded_rate = (embedded_count / total_count) * 100
                 error_types.append(("Eingebettete Werte", embedded_rate))
-    
-    # Spelling mistakes (suspicious patterns)
     if column_name.lower() in ["company", "location", "jobdescription"]:
         non_null = series.dropna()
         if len(non_null) > 0:
@@ -100,8 +86,6 @@ def get_all_error_types(series: pd.Series, column_name: str) -> List[Tuple[str, 
             if spelling_count > 0:
                 spelling_error_rate = (spelling_count / total_count) * 100
                 error_types.append(("Schreibfehler", spelling_error_rate))
-    
-    # Contradicting values (logical inconsistencies)
     if column_name.lower() == "date":
         non_null = series.dropna()
         if len(non_null) > 0:
@@ -120,8 +104,6 @@ def get_all_error_types(series: pd.Series, column_name: str) -> List[Tuple[str, 
             if future_count > 0:
                 contradiction_rate = (future_count / total_count) * 100
                 error_types.append(("Widersprüchliche Werte", contradiction_rate))
-    
-    # Misclassifications (values in wrong columns)
     if column_name.lower() == "jobtype":
         non_null = series.dropna()
         if len(non_null) > 0:
@@ -135,8 +117,6 @@ def get_all_error_types(series: pd.Series, column_name: str) -> List[Tuple[str, 
             if misplaced_count > 0:
                 misplacement_rate = (misplaced_count / total_count) * 100
                 error_types.append(("Falsche Zuordnungen", misplacement_rate))
-    
-    # Incorrect values (obviously incorrect information)
     if column_name.lower() in ["country"]:
         non_null = series.dropna()
         if len(non_null) > 0:
@@ -149,9 +129,6 @@ def get_all_error_types(series: pd.Series, column_name: str) -> List[Tuple[str, 
             if wrong_count > 0:
                 wrong_rate = (wrong_count / total_count) * 100
                 error_types.append(("Falsche Werte", wrong_rate))
-    
-    # Data conflicts (conflicting versions of the same information)
-    # This would typically require cross-record analysis, but we can check for inconsistent formatting
     if column_name.lower() in ["location", "company"]:
         non_null = series.dropna()
         if len(non_null) > 0:
@@ -169,12 +146,8 @@ def get_all_error_types(series: pd.Series, column_name: str) -> List[Tuple[str, 
             if similar_values > 0:
                 conflict_rate = (similar_values / total_count) * 100
                 error_types.append(("Datenkonflikte", conflict_rate))
-    
-    # If no errors found, return empty list
     if not error_types:
         return []
-    
-    # Sort by error rate (highest first)
     error_types.sort(key=lambda x: x[1], reverse=True)
     return error_types
 
@@ -254,8 +227,6 @@ def profile_dataframe(df: pd.DataFrame) -> pd.DataFrame:
             error_display = "None"
         else:
             error_display = str(error_val)
-
-        # Classify main error type according to Naumann/Leser
         main_error_type, main_error_rate = classify_error_type(series, column)
 
         rows.append(

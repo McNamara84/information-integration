@@ -39,8 +39,7 @@ INSTTYPE_NAMES = {
 }
 
 
-# Parameters for the employer word cloud. Adjust these values to tweak
-# the appearance of the visualization.
+# Parameters for the employer word cloud
 WC_WIDTH = 800
 WC_HEIGHT = 500
 WC_BACKGROUND_COLOR = "white"
@@ -98,7 +97,6 @@ TEMPLATE = """
                 </div>
             </div>
             <div class="col-md-6">
-                <!-- Right column: cards occupy half the combined height of the left column -->
                 <div class="card fill-card" id="cardInst">
                     <div class="card-body d-flex flex-column">
                         <h5 class="card-title">Verteilung nach Einrichtungstyp</h5>
@@ -176,7 +174,6 @@ TEMPLATE = """
         });
         map.addLayer(markerCluster);
 
-        // Dynamic height of right column cards: half the combined height of the left column cards
         function setRightCardHeights() {
             const leftTop = document.getElementById('cardTotal');
             const leftBottom = document.getElementById('cardSalaries');
@@ -184,19 +181,12 @@ TEMPLATE = """
             const rightBottom = document.getElementById('cardCloud');
             if (!leftTop || !leftBottom || !rightTop || !rightBottom) return;
 
-            // measured heights (including padding, excluding margin)
             const totalH = leftTop.getBoundingClientRect().height;
             const salariesH = leftBottom.getBoundingClientRect().height;
-
-            // target height
             const target = Math.floor((totalH + salariesH) / 2);
-
-            // apply height
             [rightTop, rightBottom].forEach(card => {
                 card.style.height = target + 'px';
             });
-
-            // re-layout chart after size change
             if (window.instChart) {
                 window.instChart.resize();
             }
@@ -205,7 +195,6 @@ TEMPLATE = """
         // Update after full load and on window resize
         window.addEventListener('load', setRightCardHeights);
         window.addEventListener('resize', setRightCardHeights);
-        // Slightly delayed update in case fonts or images load later
         setTimeout(setRightCardHeights, 100);
     </script>
 </body>
