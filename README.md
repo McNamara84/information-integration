@@ -101,7 +101,7 @@ python start.py path/zur/bibliojobs_raw.csv
    Über **Ergebnis als Exceltabelle speichern** oder **Ergebnis als CSV-Datei speichern** kann der bereinigte und deduplizierte Datenbestand abgelegt werden. Der CSV-Export verwendet den benutzerdefinierten `_§_`-Delimiter.
 
 6. **Data Warehouse initialisieren**  
-   Mit **Datenbank initialisieren** wird eine PostgreSQL-Datenbank im Sternschema erstellt und der Datensatz importiert. Die anschließende statistische Auswertung im DWH ist nicht Bestandteil der Anwendung und muss extern, z. B. per SQL oder BI-Tool, erfolgen.
+   Mit **Datenbank initialisieren** wird eine PostgreSQL-Datenbank im Sternschema erstellt und der Datensatz importiert.
 
 ## Tests
 
