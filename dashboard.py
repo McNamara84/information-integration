@@ -48,7 +48,7 @@ WC_PREFER_HORIZONTAL = 0.5  # 0 = vertical, 1 = horizontal
 # ``relative_scaling`` now expects a string literal ``"auto"`` instead of a float
 # value. ``"auto"`` corresponds to ``0.5`` when ``repeat`` is ``False`` and thus
 # preserves the behaviour that was previously configured with the numeric value.
-WC_RELATIVE_SCALING: float | str = "auto"
+WC_RELATIVE_SCALING: str = "auto"
 WC_RANDOM_STATE: int | None = None
 
 
