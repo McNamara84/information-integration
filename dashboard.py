@@ -1,3 +1,5 @@
+"""Minimal Flask dashboard for visualising Bibliojobs data."""
+
 from __future__ import annotations
 
 import math
@@ -206,6 +208,19 @@ TEMPLATE = """
 
 
 def create_app(conn_info: dict[str, str | int]) -> Flask:
+    """Create a Flask application serving the dashboard.
+
+    Parameters
+    ----------
+    conn_info : dict of str to str or int
+        Connection parameters for the PostgreSQL data warehouse.
+
+    Returns
+    -------
+    flask.Flask
+        Configured Flask application instance.
+    """
+
     app = Flask(__name__)
 
     def get_conn():

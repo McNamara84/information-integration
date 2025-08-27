@@ -12,7 +12,13 @@ from utils import make_status_printer
 
 
 def get_cache_file_path() -> str:
-    """Return the path for the license plate cache file."""
+    """Return the path of the licence plate cache file.
+
+    Returns
+    -------
+    str
+        Absolute path to the JSON cache file.
+    """
     return os.path.join(
         os.path.dirname(__file__),
         "cache",
@@ -23,7 +29,18 @@ def get_cache_file_path() -> str:
 def load_license_plate_cache(
     status_callback: Optional[Callable[[str], None]] = None,
 ) -> Dict[str, str]:
-    """Load license plate mapping from local cache file."""
+    """Load licence plate mapping from the local cache.
+
+    Parameters
+    ----------
+    status_callback : callable, optional
+        Callback receiving status messages.
+
+    Returns
+    -------
+    dict
+        Mapping of licence plate codes to place names.
+    """
     _status = make_status_printer(status_callback)
     cache_file = get_cache_file_path()
     try:
@@ -39,7 +56,15 @@ def save_license_plate_cache(
     license_plate_map: Dict[str, str],
     status_callback: Optional[Callable[[str], None]] = None,
 ) -> None:
-    """Save license plate mapping to local cache file."""
+    """Persist licence plate mapping to the local cache file.
+
+    Parameters
+    ----------
+    license_plate_map : dict
+        Mapping of licence plate codes to place names.
+    status_callback : callable, optional
+        Callback receiving status messages.
+    """
     _status = make_status_printer(status_callback)
     cache_file = get_cache_file_path()
     try:
@@ -52,7 +77,19 @@ def save_license_plate_cache(
 def fetch_german_license_plates_from_api(
     status_callback: Optional[Callable[[str], None]] = None,
 ) -> Dict[str, str]:
-    """Fetch German license plate codes from the Wikidata API."""
+    """Query the Wikidata API for German licence plate codes.
+
+    Parameters
+    ----------
+    status_callback : callable, optional
+        Callback receiving status messages.
+
+    Returns
+    -------
+    dict
+        Mapping of licence plate codes to place names. Returns an empty dict on
+        failure.
+    """
     _status = make_status_printer(status_callback)
     sparql_query = """
     SELECT ?item ?itemLabel ?licencePlate WHERE {
@@ -146,7 +183,18 @@ def fetch_german_license_plates_from_api(
 def fetch_german_license_plates(
     status_callback: Optional[Callable[[str], None]] = None,
 ) -> Dict[str, str]:
-    """Get German license plate codes, using cache first and API as fallback."""
+    """Obtain German licence plate codes using cache and API fallback.
+
+    Parameters
+    ----------
+    status_callback : callable, optional
+        Callback receiving status messages.
+
+    Returns
+    -------
+    dict
+        Mapping of licence plate codes to place names.
+    """
     _status = make_status_printer(status_callback)
     license_plate_map = load_license_plate_cache(status_callback=status_callback)
 
@@ -170,7 +218,20 @@ def fetch_german_license_plates(
 def resolve_license_plates_in_series(
     series: pd.Series, license_plate_map: Dict[str, str]
 ) -> pd.Series:
-    """Replace license plate codes in a series with full place names."""
+    """Replace licence plate codes in a series with full place names.
+
+    Parameters
+    ----------
+    series : pd.Series
+        Series possibly containing licence plate codes.
+    license_plate_map : dict
+        Mapping of licence plate codes to place names.
+
+    Returns
+    -------
+    pd.Series
+        Series with codes replaced by place names where possible.
+    """
     if not license_plate_map:
         return series
 

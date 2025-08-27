@@ -11,9 +11,19 @@ ERROR_VALUES = ["", "??", "na", "n/a", "null", None]
 
 
 def get_all_error_types(series: pd.Series, column_name: str) -> List[Tuple[str, float]]:
-    """Get all error types for a series according to Naumann/Leser taxonomy.
-    
-    Returns a list of (error_type, error_rate) tuples for all detected error types.
+    """Detect all Naumann/Leser error categories for a column.
+
+    Parameters
+    ----------
+    series : pd.Series
+        Column values to analyse.
+    column_name : str
+        Name of the column represented by ``series``.
+
+    Returns
+    -------
+    list of tuple of str and float
+        List of ``(error_type, error_rate)`` tuples sorted by occurrence.
     """
     total_count = len(series)
     if total_count == 0:
@@ -153,9 +163,19 @@ def get_all_error_types(series: pd.Series, column_name: str) -> List[Tuple[str, 
 
 
 def classify_error_type(series: pd.Series, column_name: str) -> tuple[str, float]:
-    """Classify the primary error type for a series according to Naumann/Leser taxonomy.
-    
-    Returns the error type and the error rate (0-100).
+    """Classify the most significant error for a column.
+
+    Parameters
+    ----------
+    series : pd.Series
+        Column values to analyse.
+    column_name : str
+        Name of the column represented by ``series``.
+
+    Returns
+    -------
+    tuple[str, float]
+        The detected error type and its rate in percent.
     """
     all_errors = get_all_error_types(series, column_name)
     if not all_errors:
@@ -164,13 +184,19 @@ def classify_error_type(series: pd.Series, column_name: str) -> tuple[str, float
 
 
 def top_error(series: pd.Series) -> tuple[Any, int]:
-    """Return the most frequent error marker and its count for *series*.
+    """Return the most frequent error marker.
 
     Parameters
     ----------
-    series:
-        The pandas ``Series`` to analyse.
+    series : pd.Series
+        The series to analyse.
+
+    Returns
+    -------
+    tuple[Any, int]
+        The most common error marker and its count.
     """
+
     top: Any = None
     top_count = 0
     for value in ERROR_VALUES:
@@ -186,10 +212,17 @@ def top_error(series: pd.Series) -> tuple[Any, int]:
 
 
 def profile_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    """Compute simple profiling statistics for *df*.
+    """Compute profiling statistics for a DataFrame.
 
-    The returned ``DataFrame`` contains one row per column of *df* with the
-    following metrics:
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Data to profile.
+
+    Returns
+    -------
+    pd.DataFrame
+        Summary statistics with one row per column of ``df`` including:
 
     ``Zeilen``
         Gesamtzahl der Zeilen des Datensatzes.

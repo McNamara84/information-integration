@@ -1,4 +1,11 @@
 import html
+"""Data cleaning helpers for the Bibliojobs dataset.
+
+This module contains utilities for normalising company names, extracting
+information from free-text fields and detecting potential duplicate records.
+All functions use NumPy/SciPy style docstrings for clarity.
+"""
+
 import re
 import time
 from typing import Any, Callable, Optional
@@ -67,7 +74,19 @@ CITY_PATTERNS = [
 
 
 def is_suspicious_location(loc_name: Any) -> bool:
-    """Return True if *loc_name* resembles a company rather than a city."""
+    """Check whether a location string likely refers to a company.
+
+    Parameters
+    ----------
+    loc_name : Any
+        Value taken from the location column.
+
+    Returns
+    -------
+    bool
+        ``True`` if the value appears to be a company name, ``False`` otherwise.
+    """
+
     if pd.isna(loc_name):
         return False
     loc_str = str(loc_name)
@@ -143,20 +162,21 @@ def extract_plz_from_company(
 
 
 def clean_company_field(series: pd.Series) -> pd.Series:
-    """Clean and standardize company names by removing cities, 
-    normalizing formatting, and consolidating similar entries.
-    
-    Note: postal code extraction should be done separately before this function.
-    
+    """Standardise company names.
+
+    The function removes embedded city names, normalises whitespace and
+    abbreviations and collapses redundant descriptive suffixes. Postal code
+    extraction should be performed separately prior to calling this function.
+
     Parameters
     ----------
     series : pd.Series
-        Series containing company names to clean
-        
+        Series containing company names to clean.
+
     Returns
     -------
     pd.Series
-        Cleaned series with standardized company names
+        Series with cleaned and normalised company names.
     """
     
     def clean_single_company(value):
@@ -495,18 +515,30 @@ def clean_dataframe(
     region_mapping: Optional[pd.DataFrame] = None,
     debug: bool = True,
 ) -> pd.DataFrame:
-    """Return a cleaned copy of *df* with HTML entities decoded, tags removed,
-    license plates resolved, company names standardized, and postal codes extracted to a separate column.
+    """Clean and enrich the raw dataset.
+
+    HTML entities and tags are stripped, licence plate codes resolved to full
+    city names and several text fields are normalised. Additional information
+    such as postal codes and job description details are extracted.
 
     Parameters
     ----------
-    df:
+    df : pd.DataFrame
         Input DataFrame to clean. Only ``object`` columns are processed.
-    progress_callback:
-        Optional function receiving the percentage of processed columns as a
-        ``float`` between 0 and 100.
-    status_callback:
-        Optional function receiving status messages as ``str``.
+    progress_callback : Callable[[float], None], optional
+        Function receiving progress percentage as ``float``.
+    status_callback : Callable[[str], None], optional
+        Function receiving status messages.
+    region_mapping : pd.DataFrame, optional
+        Pre-loaded mapping of locations to regions. If omitted it will be
+        loaded from disk.
+    debug : bool, optional
+        Enable additional debug output. Default is ``True``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Cleaned copy of ``df`` with additional columns.
     """
 
     _status = make_status_printer(status_callback)
@@ -790,14 +822,29 @@ def find_fuzzy_duplicates(
     threshold: int = 90,
     progress_callback: Callable[[float], None] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Find and remove duplicate rows using very strict fuzzy matching.
+    """Identify duplicate records using fuzzy string matching.
 
-    This version implements much stricter criteria to minimize false positives:
-    - Higher similarity thresholds
-    - Strict salary grade matching  
-    - Company name validation
-    - Location validation
-    - Additional semantic checks
+    The function applies a series of strict similarity and semantic checks to
+    minimise false positives. The returned tuple contains the cleaned
+    DataFrame with duplicates removed and a separate DataFrame describing the
+    detected duplicate pairs.
+
+    Parameters
+    ----------
+    dataframe : pd.DataFrame
+        Input data to analyse.
+    columns : list of str, optional
+        Columns to consider for duplicate detection. Defaults to
+        :data:`DEDUPLICATE_COLUMNS`.
+    threshold : int, optional
+        Similarity threshold (0-100) for fuzzy comparisons. Default is ``90``.
+    progress_callback : Callable[[float], None], optional
+        Callback receiving progress percentage.
+
+    Returns
+    -------
+    tuple[pd.DataFrame, pd.DataFrame]
+        Tuple of ``(cleaned_df, duplicates_df)``.
     """
     columns = columns or DEDUPLICATE_COLUMNS
     

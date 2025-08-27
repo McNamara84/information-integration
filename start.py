@@ -1,3 +1,5 @@
+"""PyQt based user interface for the information integration project."""
+
 from __future__ import annotations
 
 import argparse
@@ -55,21 +57,51 @@ T = TypeVar("T")
 
 
 def _require(value: T | None, name: str) -> T:
-    """Return *value* if it is not ``None`` or raise ``RuntimeError``."""
+    """Ensure that a value is present.
+
+    Parameters
+    ----------
+    value : T or None
+        Value to validate.
+    name : str
+        Name used in the error message.
+
+    Returns
+    -------
+    T
+        The validated value.
+
+    Raises
+    ------
+    RuntimeError
+        If ``value`` is ``None``.
+    """
     if value is None:
         raise RuntimeError(f"{name} is unexpectedly None")
     return value
 
 
 def _find_free_port() -> int:
-    """Return an available port on localhost."""
+    """Return an available port on ``localhost``.
+
+    Returns
+    -------
+    int
+        A free TCP port.
+    """
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
 
 
 def apply_modern_style(app: QtWidgets.QApplication) -> None:
-    """Apply a Windows 11 inspired style using Qt 6.9 features."""
+    """Apply a Windows 11 inspired style to a Qt application.
+
+    Parameters
+    ----------
+    app : QtWidgets.QApplication
+        Application instance whose palette and stylesheet are modified.
+    """
     app.setStyle("Fusion")
     app.setFont(QtGui.QFont("Segoe UI", 10))
 
@@ -105,6 +137,8 @@ def apply_modern_style(app: QtWidgets.QApplication) -> None:
 
 
 class LoadWorker(QtCore.QObject):
+    """Worker object that reads the raw CSV file in a background thread."""
+
     finished = QtCore.pyqtSignal(object)
     progress = QtCore.pyqtSignal(int)
     error = QtCore.pyqtSignal(str)
@@ -115,6 +149,8 @@ class LoadWorker(QtCore.QObject):
 
     @QtCore.pyqtSlot()
     def run(self):
+        """Load the CSV file and emit progress and result signals."""
+
         def callback(value: float) -> None:
             self.progress.emit(int(value))
 
@@ -128,6 +164,8 @@ class LoadWorker(QtCore.QObject):
 
 
 class CleanWorker(QtCore.QObject):
+    """Clean the loaded DataFrame in a worker thread."""
+
     finished = QtCore.pyqtSignal(object)
     progress = QtCore.pyqtSignal(int)
     status = QtCore.pyqtSignal(str)
@@ -138,6 +176,8 @@ class CleanWorker(QtCore.QObject):
 
     @QtCore.pyqtSlot()
     def run(self):
+        """Execute the cleaning pipeline and emit progress updates."""
+
         def callback(value: float) -> None:
             self.progress.emit(int(value))
 
@@ -153,6 +193,8 @@ class CleanWorker(QtCore.QObject):
 
 
 class DedupeWorker(QtCore.QObject):
+    """Find duplicate rows in a background thread."""
+
     finished = QtCore.pyqtSignal(object)
     progress = QtCore.pyqtSignal(int)
 
@@ -162,6 +204,8 @@ class DedupeWorker(QtCore.QObject):
 
     @QtCore.pyqtSlot()
     def run(self):
+        """Detect duplicates and emit the results."""
+
         def callback(value: float) -> None:
             self.progress.emit(int(value))
 
@@ -174,6 +218,8 @@ class DedupeWorker(QtCore.QObject):
 
 
 class DataWarehouseWorker(QtCore.QObject):
+    """Populate the PostgreSQL data warehouse in a worker thread."""
+
     finished = QtCore.pyqtSignal()
     progress = QtCore.pyqtSignal(int)
     status = QtCore.pyqtSignal(str)
@@ -186,6 +232,8 @@ class DataWarehouseWorker(QtCore.QObject):
 
     @QtCore.pyqtSlot()
     def run(self):
+        """Create the data warehouse and report progress and errors."""
+
         def progress_cb(value: float) -> None:
             self.progress.emit(int(value))
 
@@ -211,6 +259,8 @@ class DataWarehouseWorker(QtCore.QObject):
 
 
 class MainWindow(QtWidgets.QMainWindow):
+    """Main application window orchestrating the data integration workflow."""
+
     def __init__(self, path: str) -> None:
         super().__init__()
         self.setWindowTitle("Informationsintegration")
@@ -287,6 +337,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(object)
     def _on_finished(self, df) -> None:
+        """Handle completion of the CSV loading step."""
+
         self._status.showMessage("Einlesen abgeschlossen", 5000)
         self._progress.setValue(100)
         self._dataframe = df
@@ -295,10 +347,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(str)
     def _on_error(self, message: str) -> None:
+        """Display an error message from the loading worker."""
+
         self._status.showMessage(message, 5000)
         self._progress.setValue(0)
 
     def _show_profile(self) -> None:
+        """Show profiling statistics for the currently loaded dataset."""
+
         if self._profile_window is not None:
             self._profile_window.close()
             self._profile_window = None
@@ -313,6 +369,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._profile_window = None
 
     def _clean_data(self) -> None:
+        """Start the data cleaning process in a worker thread."""
+
         self._status.showMessage("Datensätze werden bereinigt...")
         self._progress.setValue(0)
         self._clean_button.setEnabled(False)
@@ -331,6 +389,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot(object)
     def _on_cleaned(self, df) -> None:
+        """Receive the cleaned DataFrame from the worker."""
+
         self._dataframe = df
         self._status.showMessage("Bereinigung abgeschlossen", 5000)
         self._progress.setValue(100)
@@ -338,6 +398,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._export_cleaned_button.show()
 
     def _export_cleaned(self) -> None:
+        """Export the cleaned dataset to an Excel file."""
+
         path, _ = QtWidgets.QFileDialog.getSaveFileName(
             self, "Bereinigte Daten exportieren", filter="Excel Dateien (*.xlsx)"
         )
@@ -353,12 +415,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
 
     def _init_database(self) -> None:
+        """Open a dialog to create the data warehouse."""
+
         window = DataWarehouseWindow(self._dataframe, self)
         result = window.exec()
         if result == QtWidgets.QDialog.DialogCode.Accepted:
             self._visualize_button.show()
 
     def _visualize_data(self) -> None:
+        """Launch a local web server to display the dashboard."""
+
         if self._server is not None:
             self._status.showMessage("Webserver läuft bereits", 5000)
             return
@@ -387,6 +453,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._visualize_button.setEnabled(False)
 
     def _stop_server(self) -> None:
+        """Shut down the dashboard web server if it is running."""
+
         if self._server is None:
             return
         self._server.shutdown()
@@ -398,6 +466,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._visualize_button.setEnabled(True)
 
     def _remove_duplicates(self) -> None:
+        """Start duplicate detection in a worker thread."""
+
         if self._dedupe_thread and self._dedupe_thread.isRunning():
             self._status.showMessage("Dublettenprüfung läuft bereits", 5000)
             return
@@ -444,6 +514,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self._init_db_button.show()
 
 class ProfileWindow(QtWidgets.QMainWindow):
+    """Window displaying profiling statistics for the dataset."""
+
     closed = QtCore.pyqtSignal()
 
     def __init__(self, stats, dataframe, parent=None) -> None:
@@ -531,6 +603,8 @@ class ProfileWindow(QtWidgets.QMainWindow):
 
 
 class DuplicatesWindow(QtWidgets.QMainWindow):
+    """Window used to inspect and delete duplicate records."""
+
     remove_requested = QtCore.pyqtSignal(list)
 
     def __init__(self, dataframe, parent=None) -> None:
@@ -712,6 +786,8 @@ class DuplicatesWindow(QtWidgets.QMainWindow):
 
 
 class DataWarehouseWindow(QtWidgets.QDialog):
+    """Dialog guiding the creation of the data warehouse."""
+
     def __init__(self, dataframe, parent=None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Datenbank initialisieren")
