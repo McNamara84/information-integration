@@ -32,9 +32,9 @@ INSTTYPE_NAMES = {
     "informationseinrichtung": "Informationseinrichtung",
     "oeffentliche-bibliothek": "Öffentliche Bibliothek",
     "spezialbibliothek": "Spezialbibliothek",
-    "sonstige-Einrichtung": "Sonstige",
+    "sonstige-einrichtung": "Sonstige",
     "archiv": "Archiv",
-    "wissenschaftliche-Bibliothek": "Wissenschaftliche Bibliothek",
+    "wissenschaftliche-bibliothek": "Wissenschaftliche Bibliothek",
     "bibliothek": "Bibliothek",
 }
 
