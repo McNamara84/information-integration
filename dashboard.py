@@ -67,7 +67,7 @@ TEMPLATE = """
 <body class="p-4">
     <div class="container">
         <h1 class="mb-4">Dashboard</h1>
-        <div class="row g-4">
+        <div class="row g-4 align-items-stretch">
             <div class="col-md-6">
                 <div class="card text-center mb-4">
                     <div class="card-body">
@@ -93,7 +93,7 @@ TEMPLATE = """
                 <div class="card">
                     <div class="card-body">
                         <h5 class="card-title">Verteilung nach Einrichtungstyp</h5>
-                        <canvas id="instChart"></canvas>
+                        <canvas id="instChart" style="height: 200px;"></canvas>
                     </div>
                 </div>
                 <div class="card mt-4">
@@ -141,6 +141,9 @@ TEMPLATE = """
                 datasets: [{
                     data: {{ counts|tojson }}
                 }]
+            },
+            options: {
+                maintainAspectRatio: false
             }
         });
         const map = L.map('map').setView([51.3, 10.1], 6);
