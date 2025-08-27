@@ -504,10 +504,10 @@ class ProfileWindow(QtWidgets.QMainWindow):
         if not path:
             return
         
-        # Create the report according to requirements:
-        # 1. Spalte: untersuchtes Attribut
-        # 2. Spalte: Fehlertyp gemäss der Fehlerklassifikation von Nauman/Leser  
-        # 3. Spalte: relative Fehlerquote
+        # Create the report with three columns:
+        # 1. Column: attribute under examination
+        # 2. Column: error type according to the Naumann/Leser taxonomy
+        # 3. Column: relative error rate
         rows = []
         
         # For each column in the dataframe, get ALL error types

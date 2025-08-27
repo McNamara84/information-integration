@@ -64,11 +64,11 @@ TEMPLATE = """
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
     <style>
-      /* Chart soll die Card-Höhe komplett ausfüllen */
+      /* Chart should fill the card height completely */
       #instChart { width: 99% !important; height: 99% !important; }
-      /* Verhindert Überlauf bei flex-basiertem Layout in Cards */
+      /* Prevent overflow in flex-based card layouts */
       .fill-card .card-body > .flex-grow-1 { min-height: 0; }
-      /* Überschriften zentrieren */
+      /* Center headings */
       h1, .card-title { text-align: center; }
     </style>
 </head>
@@ -98,7 +98,7 @@ TEMPLATE = """
                 </div>
             </div>
             <div class="col-md-6">
-                <!-- Rechte Spalte: beide Cards füllen je die halbe Summe der linken Cards -->
+                <!-- Right column: cards occupy half the combined height of the left column -->
                 <div class="card fill-card" id="cardInst">
                     <div class="card-body d-flex flex-column">
                         <h5 class="card-title">Verteilung nach Einrichtungstyp</h5>
@@ -147,7 +147,7 @@ TEMPLATE = """
         </div>
     </div>
     <script>
-        // Chart initialisieren und global referenzieren, damit wir später resize() aufrufen können
+        // Initialize chart and keep a global reference for later resizing
         const ctx = document.getElementById('instChart');
         const instChart = new Chart(ctx, {
             type: 'pie',
@@ -163,7 +163,7 @@ TEMPLATE = """
         });
         window.instChart = instChart;
 
-        // Leaflet-Karte + Markercluster
+        // Leaflet map and marker cluster
         const map = L.map('map').setView([51.3, 10.1], 6);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; OpenStreetMap contributors'
@@ -176,7 +176,7 @@ TEMPLATE = """
         });
         map.addLayer(markerCluster);
 
-        // Dynamische Höhe der rechten Cards: jeweils (Höhe links oben + Höhe links unten) / 2
+        // Dynamic height of right column cards: half the combined height of the left column cards
         function setRightCardHeights() {
             const leftTop = document.getElementById('cardTotal');
             const leftBottom = document.getElementById('cardSalaries');
@@ -184,28 +184,28 @@ TEMPLATE = """
             const rightBottom = document.getElementById('cardCloud');
             if (!leftTop || !leftBottom || !rightTop || !rightBottom) return;
 
-            // gemessene Höhen (inkl. Padding, exkl. margin)
+            // measured heights (including padding, excluding margin)
             const totalH = leftTop.getBoundingClientRect().height;
             const salariesH = leftBottom.getBoundingClientRect().height;
 
-            // Zielhöhe
+            // target height
             const target = Math.floor((totalH + salariesH) / 2);
 
-            // Höhe setzen
+            // apply height
             [rightTop, rightBottom].forEach(card => {
                 card.style.height = target + 'px';
             });
 
-            // Chart nach Größenänderung neu layouten
+            // re-layout chart after size change
             if (window.instChart) {
                 window.instChart.resize();
             }
         }
 
-        // Beim vollständigen Laden und bei Fenster-Resize aktualisieren
+        // Update after full load and on window resize
         window.addEventListener('load', setRightCardHeights);
         window.addEventListener('resize', setRightCardHeights);
-        // Zusätzlich leicht verzögert, falls Fonts/Bilder später einfließen
+        // Slightly delayed update in case fonts or images load later
         setTimeout(setRightCardHeights, 100);
     </script>
 </body>

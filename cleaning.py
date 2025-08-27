@@ -28,6 +28,61 @@ DEDUPLICATE_COLUMNS = [
     "salary",
 ]
 
+COMPANY_LIKE_RE = re.compile(
+    r"\b(?:gmbh|mbh|ag|kg|gbr|e\.v\.|generalvikariat|versicherung|bibliothek|"
+    r"stadtbücherei|universitätsbibliothek|landesbibliothek|staatsbibliothek|"
+    r"hochschule|universität|institut|zentrum|gesellschaft|stiftung|verlag|"
+    r"kulturbesitz)\b",
+    re.IGNORECASE,
+)
+
+SUSPICIOUS_LOCATIONS = [
+    "MVB GmbH",
+    "GVL",
+    "Quadrate",
+    "R+V Versicherung",
+    "Allianz ONE-Business Solutions GmbH Verwaltungspost",
+    "AOK -Die Gesundheitskasse für Niedersachsen Beleglesezentrum",
+    "Landeshauptstadt Der Magistrat",
+    "Südwestdeutsche Verlagsanstalt GmbH & Co. KG",
+]
+
+SPECIFIC_TERMS = [
+    "Preußischer Kulturbesitz",
+    "Beleglesezentrum",
+    "Verwaltungspost",
+    "Der Magistrat",
+]
+
+CITY_PATTERNS = [
+    r"Frankfurt(?:\s+am\s+Main)?",
+    r"Berlin",
+    r"Hamburg",
+    r"München",
+    r"Mannheim",
+    r"Stuttgart",
+    r"Wiesbaden",
+    r"Braunschweig",
+]
+
+
+def is_suspicious_location(loc_name: Any) -> bool:
+    """Return True if *loc_name* resembles a company rather than a city."""
+    if pd.isna(loc_name):
+        return False
+    loc_str = str(loc_name)
+    if COMPANY_LIKE_RE.search(loc_str):
+        return True
+    if loc_str in SUSPICIOUS_LOCATIONS:
+        return True
+    if re.search(r'^[A-ZÄÖÜß]{2,}(\s|$)', loc_str):
+        return True
+    if len(loc_str) > 50:
+        return True
+    if any(term in loc_str for term in SPECIFIC_TERMS):
+        return True
+    return False
+
 def extract_plz_from_company(
     series: pd.Series,
 ) -> tuple[pd.Series, pd.Series, pd.Series]:
@@ -52,7 +107,7 @@ def extract_plz_from_company(
         extracted_plz = None
         extracted_city = None
 
-        # Pattern: ", 12345 Stadt" at end of string
+        # Pattern: ", 12345 City" at end of string
         plz_city_comma = r',\s*(\d{5})\s+([A-ZÄÖÜ][a-zäöüß\s-]+)$'
         match = re.search(plz_city_comma, value_str, flags=re.IGNORECASE)
         if match:
@@ -60,7 +115,7 @@ def extract_plz_from_company(
             extracted_city = match.group(2).strip()
             value_str = re.sub(plz_city_comma, '', value_str, flags=re.IGNORECASE)
         else:
-            # Pattern: " 12345 Stadt" without comma
+            # Pattern: " 12345 City" without comma
             plz_city_no_comma = r'\s+(\d{5})\s+([A-ZÄÖÜ][a-zäöüß\s-]+)$'
             match = re.search(plz_city_no_comma, value_str, flags=re.IGNORECASE)
             if match:
@@ -68,7 +123,7 @@ def extract_plz_from_company(
                 extracted_city = match.group(2).strip()
                 value_str = re.sub(plz_city_no_comma, '', value_str, flags=re.IGNORECASE)
             else:
-                # Pattern: ", 12345" or " 12345" (PLZ only)
+                # Pattern: ", 12345" or " 12345" (postal code only)
                 plz_only_comma = r',\s*(\d{5})$'
                 match = re.search(plz_only_comma, value_str)
                 if match:
@@ -86,7 +141,7 @@ def extract_plz_from_company(
     # Apply extraction to all values
     results = series.apply(extract_plz_city_and_clean)
 
-    # Separate company names, PLZ, and city
+    # Separate company names, postal codes, and city
     company_names = pd.Series([result[0] for result in results], index=series.index)
     plz_codes = pd.Series([result[1] for result in results], index=series.index)
     city_names = pd.Series([result[2] for result in results], index=series.index)
@@ -98,7 +153,7 @@ def clean_company_field(series: pd.Series) -> pd.Series:
     """Clean and standardize company names by removing cities, 
     normalizing formatting, and consolidating similar entries.
     
-    Note: PLZ extraction should be done separately before this function.
+    Note: postal code extraction should be done separately before this function.
     
     Parameters
     ----------
@@ -486,7 +541,7 @@ def clean_dataframe(
     debug: bool = True,
 ) -> pd.DataFrame:
     """Return a cleaned copy of *df* with HTML entities decoded, tags removed,
-    license plates resolved, company names standardized, and PLZ extracted to separate column.
+    license plates resolved, company names standardized, and postal codes extracted to a separate column.
 
     Parameters
     ----------
@@ -519,7 +574,7 @@ def clean_dataframe(
         license_plate_map = fetch_german_license_plates(status_callback)
     _progress(10.0)
 
-    # Extract PLZ from company field before other processing
+    # Extract postal codes from company names before other processing
     if "company" in cleaned.columns:
         _status("Extrahiere Postleitzahlen aus Firmennamen...")
         company_cleaned, plz_extracted, city_extracted = extract_plz_from_company(
@@ -527,84 +582,28 @@ def clean_dataframe(
         )
         cleaned["company"] = company_cleaned
 
-        # Add PLZ column (or update if it already exists)
+        # Add postal code column (or update if it already exists)
         if "plz" not in cleaned.columns:
             cleaned["plz"] = plz_extracted
         else:
-            # If PLZ column exists, only fill empty values
+            # If postal code column exists, only fill empty values
             cleaned["plz"] = cleaned["plz"].fillna(plz_extracted)
 
-        # Use extracted city to correct location if needed
+        # Use extracted city to fix obviously incorrect location names
         if "location" in cleaned.columns:
-            company_like = r"\b(?:gmbh|mbh|ag|kg|gbr|e\.v\.|generalvikariat|versicherung|bibliothek|stadtbücherei|universitätsbibliothek|landesbibliothek|staatsbibliothek|hochschule|universität|institut|zentrum|gesellschaft|stiftung|verlag|kulturbesitz)\b"
-    
-            # Zusätzliche Kriterien für verdächtige Location-Namen
-            suspicious_locations = [
-                "MVB GmbH", "GVL", "Quadrate", "R+V Versicherung",
-                "Allianz ONE-Business Solutions GmbH Verwaltungspost",
-                "AOK -Die Gesundheitskasse für Niedersachsen Beleglesezentrum",
-                "Landeshauptstadt Der Magistrat",
-                "Südwestdeutsche Verlagsanstalt GmbH & Co. KG"
-            ]
-            
-            # Erkenne verdächtige Namen auch durch andere Kriterien
-            def is_suspicious_location(loc_name):
-                if pd.isna(loc_name):
-                    return False
-                loc_str = str(loc_name)
-                
-                # Enthält typische Firmen-Keywords
-                if re.search(company_like, loc_str, re.IGNORECASE):
-                    return True
-                
-                # Ist in der Liste bekannter problematischer Namen
-                if loc_str in suspicious_locations:
-                    return True
-                    
-                # Enthält mehrere Großbuchstaben (Abkürzungen wie GVL, MVB)
-                if re.search(r'^[A-ZÄÖÜß]{2,}(\s|$)', loc_str):
-                    return True
-                    
-                # Sehr lange Namen (wahrscheinlich Firmennamen)
-                if len(loc_str) > 50:
-                    return True
-                    
-                # Enthält "Preußischer Kulturbesitz", "Beleglesezentrum", etc.
-                specific_terms = ["Preußischer Kulturbesitz", "Beleglesezentrum", "Verwaltungspost", "Der Magistrat"]
-                if any(term in loc_str for term in specific_terms):
-                    return True
-                    
-                return False
-            
             mask = (
-                cleaned["location"].isna()
-                | cleaned["location"].apply(is_suspicious_location)
+                cleaned["location"].isna() | cleaned["location"].apply(is_suspicious_location)
             ) & city_extracted.notna()
-            
             cleaned.loc[mask, "location"] = city_extracted[mask]
-            
-            # Fallback: Wenn immer noch verdächtige Namen vorhanden sind, versuche aus Company-Namen zu extrahieren
+
+            # Fallback: attempt to extract city names from company if suspicious locations remain
             still_suspicious = cleaned["location"].apply(is_suspicious_location)
             if still_suspicious.any():
-                # Versuche aus dem Company-Feld Städte zu extrahieren
                 for idx in cleaned[still_suspicious].index:
                     company_name = cleaned.loc[idx, "company"]
                     if pd.notna(company_name):
                         company_str = str(company_name)
-                        
-                        # Einfache Stadtextraktion aus Company-Namen
-                        city_patterns = [
-                            r"Frankfurt(?:\s+am\s+Main)?",
-                            r"Berlin",
-                            r"Hamburg", 
-                            r"München",
-                            r"Mannheim",
-                            r"Stuttgart",
-                            r"Wiesbaden",
-                            r"Braunschweig"
-                        ]
-                        
-                        for pattern in city_patterns:
+                        for pattern in CITY_PATTERNS:
                             match = re.search(pattern, company_str, re.IGNORECASE)
                             if match:
                                 cleaned.loc[idx, "location"] = match.group(0)
@@ -619,17 +618,17 @@ def clean_dataframe(
     for idx, col in enumerate(object_cols, start=1):
         _status(f"Bereinige Spalte '{col}'...")
 
-        # HTML cleaning (original functionality)
+        # Remove HTML tags and decode entities
         cleaned[col] = cleaned[col].apply(
             lambda x: html.unescape(re.sub(r"<.*?>", "", str(x))) if pd.notna(x) else x
         )
 
-        # License plate resolution for location column
+        # Resolve license plates in the location column
         if col == "location" and license_plate_map:
             _status("Ersetze Kfz-Kennzeichen durch Städtenamen...")
             cleaned[col] = resolve_license_plates_in_series(cleaned[col], license_plate_map)
 
-        # Company name cleaning and standardization (after PLZ extraction)
+        # Clean and standardize company names
         if col == "company":
             _status("Bereinige und standardisiere Firmennamen...")
             cleaned[col] = clean_company_field(cleaned[col])
@@ -703,7 +702,7 @@ def clean_dataframe(
                 if len(group) == 1:
                     return group.iloc[0]["region"]
                 
-                # Wenn Koordinaten verfügbar sind, verwende diese für die Auswahl
+                # Use coordinates to select the region when available
                 if {
                     "geo_lat",
                     "geo_lon",
@@ -715,16 +714,15 @@ def clean_dataframe(
                         + (group["geo_lon"] - row["geo_lon"]) ** 2
                     )
                     return group.loc[distances.idxmin(), "region"]
-                
-                # FALLBACK: Wenn keine Koordinaten verfügbar sind, verwende das häufigste Match
-                # oder bei eindeutigem Namen (alle Matches haben die gleiche Region) verwende diese
+
+                # Fallback: if no coordinates are available, use the most frequent match
                 if len(group) > 1:
-                    # Überprüfe ob alle Matches zur gleichen Region gehören
+                    # Check whether all matches belong to the same region
                     unique_regions = group["region"].unique()
                     if len(unique_regions) == 1:
                         return unique_regions[0]
-                    
-                    # Andernfalls verwende das häufigste Match
+
+                    # Otherwise use the most frequent match
                     region_counts = group["region"].value_counts()
                     return region_counts.index[0]
                 
@@ -736,18 +734,18 @@ def clean_dataframe(
                     _resolve_location, axis=1
                 )
 
-    # 3) API fallback using coordinates - auch bei unvollständigen Koordinaten
+    # 3) API fallback using coordinates, including incomplete pairs
     if {"geo_lat", "geo_lon"}.issubset(cleaned.columns):
         coord_mask = (
             cleaned["region"].isna()
             & (
-                (cleaned["geo_lat"].notna() & cleaned["geo_lon"].notna()) |  # Beide Koordinaten
-                (cleaned["geo_lat"].notna() & cleaned["geo_lon"].isna()) |   # Nur latitude  
-                (cleaned["geo_lat"].isna() & cleaned["geo_lon"].notna())     # Nur longitude
+                (cleaned["geo_lat"].notna() & cleaned["geo_lon"].notna()) |  # both coordinates
+                (cleaned["geo_lat"].notna() & cleaned["geo_lon"].isna()) |   # only latitude
+                (cleaned["geo_lat"].isna() & cleaned["geo_lon"].notna())     # only longitude
             )
         )
         if coord_mask.any():
-            # Für unvollständige Koordinaten: verwende nur verfügbare API-Aufrufe mit vollständigen Koordinaten
+            # For partial coordinates call the API only for rows with complete pairs
             complete_coords = coord_mask & cleaned["geo_lat"].notna() & cleaned["geo_lon"].notna()
             if complete_coords.any():
                 cleaned.loc[complete_coords, "region"] = cleaned.loc[
